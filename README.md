@@ -37,7 +37,7 @@ com.Globoo
 * `message` – 예은
 * `matching` – 동한
 * `chat` – 진수
-* `study` – 게시글: 진수 / 댓글: 동한
+* `study` – 게시글: 동한 / 댓글: 진수
 * `common` – 혜송
 * `storage` – 혜송
 
