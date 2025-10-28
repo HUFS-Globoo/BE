@@ -8,5 +8,5 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/studies")
 public class StudyController {
     @GetMapping
-    public ApiResponse<String> list(){ return ApiResponse.onSuccess("[]"); }
+    public ApiResponse<String> list(){ return ApiResponse.ok("[]"); }
 }

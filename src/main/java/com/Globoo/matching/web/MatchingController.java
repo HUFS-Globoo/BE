@@ -8,5 +8,5 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/matching")
 public class MatchingController {
     @GetMapping("/status")
-    public ApiResponse<String> status(){ return ApiResponse.onSuccess("WAITING"); }
+    public ApiResponse<String> status(){ return ApiResponse.ok("WAITING"); }
 }
