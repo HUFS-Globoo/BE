@@ -21,7 +21,8 @@ public enum ErrorCode {
 
     // Chat
     CHAT_ROOM_NOT_FOUND(HttpStatus.NOT_FOUND, "채팅방을 찾을 수 없습니다."),
-    ALREADY_PARTICIPANT(HttpStatus.CONFLICT, "이미 채팅방에 참여중인 사용자입니다.");
+    ALREADY_PARTICIPANT(HttpStatus.CONFLICT, "이미 채팅방에 참여중인 사용자입니다."),
+    NOT_CHAT_PARTICIPANT(HttpStatus.FORBIDDEN, "채팅방 참여자가 아닙니다.");
 
 
     private final HttpStatus status;

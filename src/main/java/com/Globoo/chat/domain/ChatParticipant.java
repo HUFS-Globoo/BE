@@ -25,9 +25,17 @@ public class ChatParticipant extends BaseTimeEntity {
     @JoinColumn(name = "chat_room_id", nullable = false)
     private ChatRoom chatRoom; // 참여한 채팅방
 
+    private Long lastReadMessageId;
+
     @Builder
     public ChatParticipant(User user, ChatRoom chatRoom) {
         this.user = user;
         this.chatRoom = chatRoom;
+    }
+
+    public void updateLastReadMessageId(Long messageId) {
+        if (this.lastReadMessageId == null || messageId > this.lastReadMessageId) {
+            this.lastReadMessageId = messageId;
+        }
     }
 }

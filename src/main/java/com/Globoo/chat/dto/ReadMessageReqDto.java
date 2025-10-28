@@ -5,7 +5,7 @@ import lombok.NoArgsConstructor;
 
 @Getter
 @NoArgsConstructor
-public class ChatMessageSendReqDto extends BaseWebSocketMessageDto {
+public class ReadMessageReqDto extends BaseWebSocketMessageDto {
     private Long roomId;
-    private String message;
+    private Long lastReadMessageId;
 }

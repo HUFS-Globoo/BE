@@ -5,8 +5,8 @@ import com.Globoo.chat.dto.ChatRoomCreateReqDto;
 import com.Globoo.chat.dto.ChatRoomCreateResDto;
 import com.Globoo.chat.dto.ChatRoomGetResDto;
 import com.Globoo.chat.service.ChatService;
-import com.Globoo.common.security.SecurityUtils; // (SecurityUtils 사용)
-import com.Globoo.common.web.ApiResponse; // (공통 응답 DTO 가정)
+import com.Globoo.common.security.SecurityUtils;
+import com.Globoo.common.web.ApiResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -25,8 +25,6 @@ public class ChatRoomController {
     public ResponseEntity<ApiResponse<ChatRoomCreateResDto>> createChatRoom(
             @RequestBody ChatRoomCreateReqDto dto
     ) {
-        // (주의: 이 API는 매칭된 클라이언트가 아닌, '매칭 서비스'가 호출해야 합니다.)
-        // (또는, 클라이언트가 호출하더라도 인증된 사용자가 본인 ID를 넣어야 합니다.)
         Long currentUserId = SecurityUtils.getCurrentUserId();
         ChatRoomCreateResDto response = chatService.createChatRoom(dto, currentUserId);
         return ResponseEntity.ok(ApiResponse.onSuccess(response));

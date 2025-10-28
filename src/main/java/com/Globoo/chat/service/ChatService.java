@@ -11,8 +11,6 @@ import com.Globoo.common.error.exception.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.security.Principal;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -95,8 +93,14 @@ public class ChatService {
     }
 
     @Transactional
-    public void processReadMessage(ChatReadReqDto dto, Principal principal) {
-        Long currentUserId = Long.parseLong(principal.getName());
+    public void updateLastReadMessageId(Long readerId, Long roomId, Long lastReadMessageId) {
+        User reader = findUserById(readerId);
+        ChatRoom chatRoom = findChatRoomById(roomId);
+
+        ChatParticipant participant = chatParticipantRepository.findByChatRoomAndUser(chatRoom, reader)
+                .orElseThrow(() -> new EntityNotFoundException(ErrorCode.NOT_CHAT_PARTICIPANT));
+
+        participant.updateLastReadMessageId(lastReadMessageId);
     }
 
     private User findUserById(Long userId) {
