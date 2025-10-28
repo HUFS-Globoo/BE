@@ -5,6 +5,8 @@ build/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
+BE
+
 
 ### STS ###
 .apt_generated
@@ -69,3 +71,7 @@ src/main/resources/application-dev.yml
 hs_err_pid*
 replay_pid*
 >>>>>>> 066800d42975a4a6d8a37fa7fc57b41eca960992
+
+# Sensitive configuration files (DO NOT COMMIT)
+application-yml
+application-*yml
