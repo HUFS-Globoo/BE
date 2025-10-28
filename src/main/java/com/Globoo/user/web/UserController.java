@@ -8,5 +8,5 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/users")
 public class UserController {
     @GetMapping("/me")
-    public ApiResponse<String> me(){ return ApiResponse.ok("me"); }
+    public ApiResponse<String> me(){ return ApiResponse.onSuccess("me"); }
 }

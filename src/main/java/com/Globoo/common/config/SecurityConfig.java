@@ -1,14 +1,23 @@
 package com.Globoo.common.config; // ← 패키지 소문자 권장
 
 import com.Globoo.common.security.JwtAuthenticationFilter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import java.util.List;
 
 @Configuration
+@RequiredArgsConstructor
 public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtFilter;
 
     private static final String[] SWAGGER_WHITELIST = {
             "/v3/api-docs/**",
@@ -19,15 +28,24 @@ public class SecurityConfig {
     };
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // API만 보안검사 대상 (Swagger/정적자원은 제외)
-                .securityMatcher("/api/**", "/ws/**")
-                .csrf(csrf -> csrf.disable())
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                .cors(cors -> cors.configurationSource(request -> {
+                    CorsConfiguration config = new CorsConfiguration();
+                    config.setAllowedOrigins(List.of("*")); // (테스트용) 모든 Origin 허용
+                    config.setAllowedMethods(List.of("*")); // 모든 HTTP Method 허용
+                    config.setAllowedHeaders(List.of("*")); // 모든 Header 허용
+                    return config;
+                }))
+
+                .headers(AbstractHttpConfigurer::disable)
+
                 .authorizeHttpRequests(auth -> auth
-                        // 인증/문서/웹소켓 핸드셰이크 허용
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers(SWAGGER_WHITELIST).permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated()
                 )
