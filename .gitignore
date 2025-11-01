@@ -41,7 +41,7 @@ out/
 src/main/resources/application.yml
 # 개인 로컬 설정 (공유 금지)
 src/main/resources/application-dev.yml
-
+src/main/resources/application-*.yml
 
 =======
 # Compiled class file

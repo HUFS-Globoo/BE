@@ -2,7 +2,7 @@ package com.Globoo.message.web;
 
 import com.Globoo.message.domain.DirectMessage;
 import com.Globoo.message.domain.DmThread;
-import com.Globoo.message.dto.MessageRequestDto;
+import com.Globoo.message.dto.MessageReqDto;
 import com.Globoo.message.service.MessageService;
 import com.Globoo.user.domain.User;
 import com.Globoo.user.repository.UserRepository;
@@ -44,7 +44,7 @@ public class MessageController {
     // 쪽지 보내기
     @PostMapping
     public DirectMessage sendMessage(Authentication authentication,
-                                     @RequestBody MessageRequestDto dto) {
+                                     @RequestBody MessageReqDto dto) {
         Long userId = Long.parseLong(authentication.getName());
         User sender = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("로그인 유저 없음"));
