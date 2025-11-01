@@ -11,7 +11,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 @Entity
-@Table(name = "users",
+@Table(
+        name = "users",
         uniqueConstraints = {
                 @UniqueConstraint(name = "uk_users_email", columnNames = "email"),
                 @UniqueConstraint(name = "uk_users_username", columnNames = "username")
@@ -32,7 +33,7 @@ public class User {
     private String email;
 
     @Column(nullable=false, unique=true, length=30)
-    private String username;
+    private String username;   // ← 너의 기준 필드(두 번째 코드의 nickname 대체)
 
     @Column(nullable=false, length=100)
     private String password;
@@ -42,6 +43,10 @@ public class User {
 
     @Column(name="phone_number", length=20)
     private String phoneNumber;
+
+    // 선택 필드: 두 번째 코드의 profileImageUrl 흡수 (nullable 허용)
+    @Column(name="profile_image_url", length=512)
+    private String profileImageUrl;
 
     @Column(name="is_school_verified", nullable=false)
     private boolean schoolVerified;
@@ -58,12 +63,12 @@ public class User {
     @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL, optional = true)
     private Profile profile;
 
-    // 사용 언어 컬렉션 — Set으로 변경 (bag 회피)
+    // 사용 언어
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
     @OrderBy("id ASC")
     private Set<UserLanguage> userLanguages = new LinkedHashSet<>();
 
-    // 키워드 컬렉션 — Set으로 변경 (bag 회피)
+    // 키워드
     @OneToMany(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
     @OrderBy("id ASC")
     private Set<UserKeyword> userKeywords = new LinkedHashSet<>();
