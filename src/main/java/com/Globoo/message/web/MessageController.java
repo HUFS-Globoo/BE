@@ -57,7 +57,7 @@ public class MessageController {
         return messageService.sendMessage(sender, receiver, dto.getContent());
     }
 
-    // 쪽지 읽음 처리
+
     @PostMapping("/{partnerId}/read")
     @Operation(summary = "쪽지 읽음 처리", description = "상대방이 쪽지를 읽으면 쪽지 읽음 처리")
     public void markAsRead(Authentication authentication,
