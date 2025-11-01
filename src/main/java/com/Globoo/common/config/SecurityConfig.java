@@ -21,41 +21,46 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-                // ✅ CORS 허용 (개발용 기본값)
+                // CORS
                 .cors(Customizer.withDefaults())
 
-                // ✅ CSRF: /api/** 및 Swagger 경로는 무시 (토큰 없이 POST 가능)
+                // ✅ CSRF: API/Swagger + WebSocket 핸드셰이크 경로 제외
                 .csrf(csrf -> csrf.ignoringRequestMatchers(
                         new AntPathRequestMatcher("/api/**"),
                         new AntPathRequestMatcher("/v3/api-docs/**"),
                         new AntPathRequestMatcher("/swagger-ui/**"),
-                        new AntPathRequestMatcher("/swagger-ui.html")
+                        new AntPathRequestMatcher("/swagger-ui.html"),
+                        new AntPathRequestMatcher("/ws/**")              // ✅ 추가
                 ))
 
-                // ✅ 요청권한: 개발 편의를 위해 전부 permitAll
+                // ✅ 권한: 개발 단계에서는 전부 허용(필요 시 좁히세요)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        .requestMatchers(
+                                "/v3/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
                         .requestMatchers("/api/**").permitAll()
+                        .requestMatchers("/ws/**").permitAll()          // ✅ 추가 (웹소켓 엔드포인트)
                         .anyRequest().permitAll()
                 )
 
-                // 로그인/세션 관련 (API만 쓰면 폼 로그인/세션 필요 없음)
+                // API만 쓰면 폼 로그인/세션 불필요
                 .httpBasic(Customizer.withDefaults())
                 .formLogin(form -> form.disable());
 
         return http.build();
     }
 
-    // ✅ CORS 설정 (필요 시 도메인 한정)
+    // CORS
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // 개발용: 모든 오리진 허용. 운영에서는 구체적으로 제한하세요.
         config.setAllowedOrigins(List.of("*"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        config.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(false);
+        config.setAllowCredentials(false); // 운영에서 특정 도메인 허용 시 true로 전환 + AllowedOrigins 조정
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
