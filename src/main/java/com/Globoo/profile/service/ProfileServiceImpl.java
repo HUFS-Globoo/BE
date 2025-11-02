@@ -136,3 +136,4 @@ public class ProfileServiceImpl implements ProfileService {
         return email.charAt(0) + "****" + email.substring(idx);
     }
 }
+//여기 오류 되어있는거 걍 무시해도 코드 돌아가용

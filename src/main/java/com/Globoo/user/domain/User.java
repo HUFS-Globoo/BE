@@ -33,7 +33,7 @@ public class User {
     private String email;
 
     @Column(nullable=false, unique=true, length=30)
-    private String username;   // ← 너의 기준 필드(두 번째 코드의 nickname 대체)
+    private String username;   // nickname 대체
 
     @Column(nullable=false, length=100)
     private String password;

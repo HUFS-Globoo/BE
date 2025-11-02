@@ -32,19 +32,19 @@ public class StudyController {
             @RequestParam(required = false) Integer minCapacity,
             @RequestParam(required = false) Integer maxCapacity
     ) {
-        return ApiResponse.ok(
+        return ApiResponse.onSuccess(
                 studyService.getStudyPosts(status, campus, language, minCapacity, maxCapacity)
         );
     }
 
     @GetMapping("/{postId}")
     public ApiResponse<StudyPostDto.Response> getOne(@PathVariable Long postId) {
-        return ApiResponse.ok(studyService.getStudyPost(postId));
+        return ApiResponse.onSuccess(studyService.getStudyPost(postId));
     }
 
     @PostMapping
     public ApiResponse<StudyPostDto.Response> create(@RequestBody StudyPostDto.Request req) {
-        return ApiResponse.ok(studyService.createStudyPost(req));
+        return ApiResponse.onSuccess(studyService.createStudyPost(req));
     }
 
     @PatchMapping("/{postId}")
@@ -52,12 +52,12 @@ public class StudyController {
             @PathVariable Long postId,
             @RequestBody StudyPostDto.Request req
     ) {
-        return ApiResponse.ok(studyService.updateStudyPost(postId, req));
+        return ApiResponse.onSuccess(studyService.updateStudyPost(postId, req));
     }
 
     @DeleteMapping("/{postId}")
     public ApiResponse<String> delete(@PathVariable Long postId) {
         studyService.deleteStudyPost(postId);
-        return ApiResponse.ok("게시글이 성공적으로 삭제되었습니다.");
+        return ApiResponse.onSuccess("게시글이 성공적으로 삭제되었습니다.");
     }
 }

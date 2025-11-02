@@ -18,7 +18,7 @@ public class ChatMessageGetResDto {
         return new ChatMessageGetResDto(
                 message.getId(),
                 message.getSender().getId(),
-                message.getSender().getNickname(),
+                message.getSender().getUsername(),
                 message.getMessage(),
                 message.getCreatedAt()
         );
