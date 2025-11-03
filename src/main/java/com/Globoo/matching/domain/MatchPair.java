@@ -1,3 +1,4 @@
+// src/main/java/com/Globoo/matching/domain/MatchPair.java
 package com.Globoo.matching.domain;
 
 import jakarta.persistence.*;
@@ -32,7 +33,10 @@ public class MatchPair {
     private Boolean acceptedA;
     private Boolean acceptedB;
 
-    private UUID chatRoomId;
+    /** ChatRoom PK와 타입 일치 (Long) */
+    @Column(name = "chat_room_id")
+    private Long chatRoomId;
+
     private LocalDateTime matchedAt;
     private String matchedBy;
 }
