@@ -1,0 +1,872 @@
+===== ./gradle/wrapper/gradle-wrapper.properties =====
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.14.3-bin.zip
+networkTimeout=10000
+validateDistributionUrl=true
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+
+===== ./.gradle/vcs-1/gc.properties =====
+
+===== ./.gradle/buildOutputCleanup/cache.properties =====
+#Fri Oct 31 09:44:20 KST 2025
+gradle.version=8.14.3
+
+===== ./.gradle/8.14.3/gc.properties =====
+
+===== ./src/test/java/com/Globoo/backend/GlobooBackendApplicationTests.java =====
+package com.Globoo.backend;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.boot.test.context.SpringBootTest;
+
+@SpringBootTest
+class GlobooBackendApplicationTests {
+
+	@Test
+	void contextLoads() {
+	}
+
+}
+
+===== ./src/main/java/com/Globoo/matching/repository/MatchQueueRepository.java =====
+package com.Globoo.matching.repository;
+
+
+import com.Globoo.matching.domain.MatchQueue;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface MatchQueueRepository extends JpaRepository<MatchQueue, String> { }
+
+===== ./src/main/java/com/Globoo/matching/repository/MatchPairRepository.java =====
+package com.Globoo.matching.repository;
+
+
+import com.Globoo.matching.domain.MatchPair;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface MatchPairRepository extends JpaRepository<MatchPair, String> { }
+
+===== ./src/main/java/com/Globoo/matching/web/MatchingController.java =====
+package com.Globoo.matching.web;
+
+
+import com.Globoo.common.web.ApiResponse;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/matching")
+public class MatchingController {
+    @GetMapping("/status")
+    public ApiResponse<String> status(){ return ApiResponse.ok("WAITING"); }
+}
+
+===== ./src/main/java/com/Globoo/matching/service/MatchingService.java =====
+package com.Globoo.matching.service;
+
+
+import org.springframework.stereotype.Service;
+
+@Service
+public class MatchingService { }
+
+===== ./src/main/java/com/Globoo/matching/domain/MatchQueue.java =====
+package com.Globoo.matching.domain;
+
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "match_queue")
+public class MatchQueue {
+    @Id
+    private String id;
+}
+
+===== ./src/main/java/com/Globoo/matching/domain/MatchPair.java =====
+package com.Globoo.matching.domain;
+
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "match_pair")
+public class MatchPair {
+    @Id
+    private String id;
+}
+
+===== ./src/main/java/com/Globoo/GlobooApplication.java =====
+package com.Globoo;
+
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class GlobooApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(GlobooApplication.class, args);
+    }
+}
+
+===== ./src/main/java/com/Globoo/study/repository/CommentRepository.java =====
+package com.Globoo.study.repository;
+
+
+import com.Globoo.study.domain.Comment;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface CommentRepository extends JpaRepository<Comment, Long> { }
+
+===== ./src/main/java/com/Globoo/study/repository/StudyPostRepository.java =====
+package com.Globoo.study.repository;
+
+
+import com.Globoo.study.domain.StudyPost;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface StudyPostRepository extends JpaRepository<StudyPost, Long> { }
+
+===== ./src/main/java/com/Globoo/study/web/CommentController.java =====
+package com.Globoo.study.web;
+
+
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class CommentController { }
+
+===== ./src/main/java/com/Globoo/study/web/StudyController.java =====
+package com.Globoo.study.web;
+
+
+import com.Globoo.common.web.ApiResponse;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/studies")
+public class StudyController {
+    @GetMapping
+    public ApiResponse<String> list(){ return ApiResponse.ok("[]"); }
+}
+
+===== ./src/main/java/com/Globoo/study/service/StudyService.java =====
+package com.Globoo.study.service;
+
+
+import org.springframework.stereotype.Service;
+
+@Service
+public class StudyService { }
+
+===== ./src/main/java/com/Globoo/study/service/CommentService.java =====
+package com.Globoo.study.service;
+
+
+import org.springframework.stereotype.Service;
+
+@Service
+public class CommentService { }
+
+===== ./src/main/java/com/Globoo/study/domain/StudyPost.java =====
+package com.Globoo.study.domain;
+
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "study_posts")
+public class StudyPost {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+}
+
+===== ./src/main/java/com/Globoo/study/domain/Comment.java =====
+package com.Globoo.study.domain;
+
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "comments")
+public class Comment {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+}
+
+===== ./src/main/java/com/Globoo/chat/dto/ChatMessagePayload.java =====
+package com.Globoo.chat.dto;
+
+public record ChatMessagePayload(Long roomId, Long senderId, String content) {}
+
+===== ./src/main/java/com/Globoo/chat/repository/ChatParticipantRepository.java =====
+package com.Globoo.chat.repository;
+
+import com.Globoo.chat.domain.ChatParticipant;
+import com.Globoo.chat.domain.ChatRoom;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ChatParticipantRepository extends JpaRepository<ChatParticipant, Long> {
+    boolean existsByRoomAndUserId(ChatRoom room, Long userId);
+}
+
+===== ./src/main/java/com/Globoo/chat/repository/ChatRoomRepository.java =====
+package com.Globoo.chat.repository;
+
+import com.Globoo.chat.domain.ChatRoom;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ChatRoomRepository extends JpaRepository<ChatRoom, Long> {}
+
+===== ./src/main/java/com/Globoo/chat/repository/ChatMessageRepository.java =====
+package com.Globoo.chat.repository;
+
+import com.Globoo.chat.domain.ChatMessage;
+import com.Globoo.chat.domain.ChatRoom;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+
+public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> {
+    List<ChatMessage> findTop100ByRoomOrderByIdDesc(ChatRoom room);
+}
+
+===== ./src/main/java/com/Globoo/chat/web/ChatController.java =====
+package com.Globoo.chat.web;
+
+import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@Tag(name = "Chat")
+@RestController
+@RequestMapping("/api/chat")
+public class ChatController {
+
+}
+
+===== ./src/main/java/com/Globoo/chat/service/ChatService.java =====
+package com.Globoo.chat.service;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+@Transactional
+public class ChatService {
+}
+
+===== ./src/main/java/com/Globoo/chat/domain/ChatParticipant.java =====
+package com.Globoo.chat.domain;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(uniqueConstraints = @UniqueConstraint(columnNames = {"room_id","userId"}))
+public class ChatParticipant {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "room_id")
+    private ChatRoom room;
+
+    private Long userId;
+    private boolean joined = true;
+}
+
+===== ./src/main/java/com/Globoo/chat/domain/ChatRoom.java =====
+package com.Globoo.chat.domain;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+public class ChatRoom {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String name;          // 랜덤매칭이면 "match-{uuid}" 등
+    private boolean active = true;
+
+    private LocalDateTime createdAt = LocalDateTime.now();
+
+    // getter/setter 생략(롬복 쓰면 @Getter/@Setter)
+}
+
+===== ./src/main/java/com/Globoo/chat/domain/ChatMessage.java =====
+package com.Globoo.chat.domain;
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity
+public class ChatMessage {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY) @JoinColumn(name = "room_id")
+    private ChatRoom room;
+
+    private Long senderId;        // User ID
+    @Column(columnDefinition = "TEXT")
+    private String content;
+
+    private LocalDateTime sentAt = LocalDateTime.now();
+}
+
+===== ./src/main/java/com/Globoo/auth/dto/TokenRes.java =====
+package com.Globoo.auth.dto;
+
+
+public record TokenRes(String accessToken, String refreshToken) { }
+
+===== ./src/main/java/com/Globoo/auth/dto/LoginReq.java =====
+package com.Globoo.auth.dto;
+
+
+public record LoginReq(String email, String password) { }
+
+===== ./src/main/java/com/Globoo/auth/dto/SignupReq.java =====
+package com.Globoo.auth.dto;
+
+
+public record SignupReq(String email, String username, String password) { }
+
+===== ./src/main/java/com/Globoo/auth/repository/RefreshTokenRepository.java =====
+package com.Globoo.auth.repository;
+
+
+import com.Globoo.auth.domain.RefreshToken;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long> { }
+
+===== ./src/main/java/com/Globoo/auth/repository/EmailVerificationTokenRepository.java =====
+package com.Globoo.auth.repository;
+
+
+import com.Globoo.auth.domain.EmailVerificationToken;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface EmailVerificationTokenRepository extends JpaRepository<EmailVerificationToken, Long> { }
+
+===== ./src/main/java/com/Globoo/auth/web/AuthController.java =====
+package com.Globoo.auth.web;
+
+
+import com.Globoo.common.web.ApiResponse;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/auth")
+public class AuthController {
+    @PostMapping("/login")
+    public ApiResponse<String> login(){ return ApiResponse.ok("token"); }
+}
+
+===== ./src/main/java/com/Globoo/auth/service/AuthService.java =====
+package com.Globoo.auth.service;
+
+
+import org.springframework.stereotype.Service;
+
+@Service
+public class AuthService { }
+
+===== ./src/main/java/com/Globoo/auth/service/EmailVerificationService.java =====
+package com.Globoo.auth.service;
+
+
+import org.springframework.stereotype.Service;
+
+@Service
+public class EmailVerificationService { }
+
+===== ./src/main/java/com/Globoo/auth/domain/RefreshToken.java =====
+package com.Globoo.auth.domain;
+
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity @Table(name = "refresh_tokens")
+public class RefreshToken {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
+    Long userId; String token; LocalDateTime expiresAt;
+}
+
+===== ./src/main/java/com/Globoo/auth/domain/EmailVerificationToken.java =====
+package com.Globoo.auth.domain;
+
+
+import jakarta.persistence.*;
+import java.time.LocalDateTime;
+
+@Entity @Table(name = "email_verifications")
+public class EmailVerificationToken {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY) Long id;
+    Long userId; String email; String token; LocalDateTime expiresAt;
+}
+
+===== ./src/main/java/com/Globoo/message/repository/DirectMessageRepository.java =====
+package com.Globoo.message.repository;
+
+
+import com.Globoo.message.domain.DirectMessage;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface DirectMessageRepository extends JpaRepository<DirectMessage, Long> { }
+
+===== ./src/main/java/com/Globoo/message/repository/DmThreadParticipantRepository.java =====
+package com.Globoo.message.repository;
+
+
+import com.Globoo.message.domain.DmThreadParticipant;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface DmThreadParticipantRepository extends JpaRepository<DmThreadParticipant, Long> { }
+
+===== ./src/main/java/com/Globoo/message/repository/DmThreadRepository.java =====
+package com.Globoo.message.repository;
+
+
+import com.Globoo.message.domain.DmThread;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface DmThreadRepository extends JpaRepository<DmThread, Long> { }
+
+===== ./src/main/java/com/Globoo/message/web/MessageController.java =====
+package com.Globoo.message.web;
+
+
+import com.Globoo.common.web.ApiResponse;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/messages")
+public class MessageController {
+    @GetMapping
+    public ApiResponse<String> list(){ return ApiResponse.ok("[]"); }
+}
+
+===== ./src/main/java/com/Globoo/message/service/MessageService.java =====
+package com.Globoo.message.service;
+
+
+import org.springframework.stereotype.Service;
+
+@Service
+public class MessageService { }
+
+===== ./src/main/java/com/Globoo/message/domain/DirectMessage.java =====
+package com.Globoo.message.domain;
+
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "direct_messages")
+public class DirectMessage {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+}
+
+===== ./src/main/java/com/Globoo/message/domain/DmThread.java =====
+package com.Globoo.message.domain;
+
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "dm_threads")
+public class DmThread {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+}
+
+===== ./src/main/java/com/Globoo/message/domain/DmThreadParticipant.java =====
+package com.Globoo.message.domain;
+
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "dm_thread_participants")
+public class DmThreadParticipant {
+    @Id
+    private Long userId; // composite key -> 추후 @IdClass 사용
+}
+
+===== ./src/main/java/com/Globoo/user/repository/ProfileRepository.java =====
+package com.Globoo.user.repository;
+
+
+import com.Globoo.user.domain.Profile;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ProfileRepository extends JpaRepository<Profile, Long> { }
+
+===== ./src/main/java/com/Globoo/user/repository/UserRepository.java =====
+package com.Globoo.user.repository;
+
+
+import com.Globoo.user.domain.User;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface UserRepository extends JpaRepository<User, Long> { }
+
+===== ./src/main/java/com/Globoo/user/web/UserController.java =====
+package com.Globoo.user.web;
+
+
+import com.Globoo.common.web.ApiResponse;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/users")
+public class UserController {
+    @GetMapping("/me")
+    public ApiResponse<String> me(){ return ApiResponse.ok("me"); }
+}
+
+===== ./src/main/java/com/Globoo/user/service/ProfileImageService.java =====
+package com.Globoo.user.service;
+
+
+import org.springframework.stereotype.Service;
+
+@Service
+public class ProfileImageService { }
+
+===== ./src/main/java/com/Globoo/user/service/UserService.java =====
+package com.Globoo.user.service;
+
+
+import org.springframework.stereotype.Service;
+
+@Service
+public class UserService { }
+
+===== ./src/main/java/com/Globoo/user/domain/Profile.java =====
+package com.Globoo.user.domain;
+
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "profiles")
+public class Profile {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+}
+
+===== ./src/main/java/com/Globoo/user/domain/UserKeyword.java =====
+package com.Globoo.user.domain;
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "user_keywords")
+public class UserKeyword {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+}
+
+===== ./src/main/java/com/Globoo/user/domain/User.java =====
+package com.Globoo.user.domain;
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "users")
+public class User {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+}
+
+===== ./src/main/java/com/Globoo/user/domain/Language.java =====
+package com.Globoo.user.domain;
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "languages")
+public class Language {
+    @Id
+    private String code;
+}
+
+===== ./src/main/java/com/Globoo/user/domain/UserLanguage.java =====
+package com.Globoo.user.domain;
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "user_languages")
+public class UserLanguage {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+}
+
+===== ./src/main/java/com/Globoo/user/domain/Keyword.java =====
+package com.Globoo.user.domain;
+
+
+import jakarta.persistence.*;
+
+@Entity @Table(name = "keywords")
+public class Keyword {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+}
+
+===== ./src/main/java/com/Globoo/storage/infra/LocalStorage.java =====
+package com.Globoo.storage.infra;
+
+
+import com.Globoo.storage.service.FileStorageService;
+import org.springframework.stereotype.Component;
+import java.io.InputStream;
+
+@Component
+public class LocalStorage implements FileStorageService {
+    @Override public String store(InputStream in, String filename){ return "/local/" + filename; }
+    @Override public void delete(String url){ }
+}
+
+===== ./src/main/java/com/Globoo/storage/infra/S3Storage.java =====
+package com.Globoo.storage.infra;
+
+
+import com.Globoo.storage.service.FileStorageService;
+import org.springframework.stereotype.Component;
+import java.io.InputStream;
+
+@Component
+public class S3Storage implements FileStorageService {
+    @Override public String store(InputStream in, String filename){ return "s3://bucket/" + filename; }
+    @Override public void delete(String url){ }
+}
+
+===== ./src/main/java/com/Globoo/storage/service/FileStorageService.java =====
+package com.Globoo.storage.service;
+
+
+import java.io.InputStream;
+
+public interface FileStorageService {
+    String store(InputStream in, String filename);
+    void delete(String url);
+}
+
+===== ./src/main/java/com/Globoo/common/config/MailConfig.java =====
+package com.Globoo.common.config;
+
+
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class MailConfig { }
+
+===== ./src/main/java/com/Globoo/common/config/SecurityConfig.java =====
+package com.Globoo.common.config; // ← 패키지 소문자 권장
+
+import com.Globoo.common.security.JwtAuthenticationFilter;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class SecurityConfig {
+
+    private static final String[] SWAGGER_WHITELIST = {
+            "/v3/api-docs/**",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/swagger-resources/**",
+            "/webjars/**"
+    };
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtFilter) throws Exception {
+        http
+                // API만 보안검사 대상 (Swagger/정적자원은 제외)
+                .securityMatcher("/api/**", "/ws/**")
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        // 인증/문서/웹소켓 핸드셰이크 허용
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(SWAGGER_WHITELIST).permitAll()
+                        .requestMatchers("/ws/**").permitAll()
+                        .anyRequest().authenticated()
+                )
+                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+
+        return http.build();
+    }
+}
+
+===== ./src/main/java/com/Globoo/common/config/SwaggerConfig.java =====
+package com.Globoo.common.config;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class SwaggerConfig {
+    @Bean
+    public OpenAPI openAPI() {
+        return new OpenAPI().info(new Info().title("Globoo API").version("v1"));
+    }
+}
+
+===== ./src/main/java/com/Globoo/common/config/WebSocketConfig.java =====
+package com.Globoo.common.config;
+
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.messaging.simp.config.MessageBrokerRegistry;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+
+@Configuration
+@EnableWebSocketMessageBroker
+public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+    @Override public void registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint("/ws/chat").setAllowedOriginPatterns("*");
+    }
+    @Override public void configureMessageBroker(MessageBrokerRegistry registry) {
+        registry.enableSimpleBroker("/sub");
+        registry.setApplicationDestinationPrefixes("/pub");
+    }
+}
+
+===== ./src/main/java/com/Globoo/common/config/CorsConfig.java =====
+package com.Globoo.common.config;
+
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+import org.springframework.web.filter.CorsFilter;
+
+@Configuration
+public class CorsConfig {
+    @Bean
+    public CorsFilter corsFilter() {
+        CorsConfiguration config = new CorsConfiguration();
+        config.addAllowedOriginPattern("*");
+        config.addAllowedHeader("*");
+        config.addAllowedMethod("*");
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", config);
+        return new CorsFilter(source);
+    }
+}
+
+===== ./src/main/java/com/Globoo/common/security/SecurityUtils.java =====
+package com.Globoo.common.security;
+
+
+public class SecurityUtils {
+    public static Long currentUserId(){ return 0L; }
+}
+
+===== ./src/main/java/com/Globoo/common/security/JwtAuthenticationFilter.java =====
+package com.Globoo.common.security;
+
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+import java.io.IOException;
+
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+    @Override
+    protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
+            throws ServletException, IOException {
+        chain.doFilter(req, res);
+    }
+}
+
+===== ./src/main/java/com/Globoo/common/security/JwtTokenProvider.java =====
+package com.Globoo.common.security;
+
+
+import org.springframework.stereotype.Component;
+
+@Component
+public class JwtTokenProvider {
+    public String createAccessToken(Long userId){ return "stub"; }
+    public boolean validate(String token){ return true; }
+    public Long getUserId(String token){ return 0L; }
+}
+
+===== ./src/main/java/com/Globoo/common/security/CustomUserDetailsService.java =====
+package com.Globoo.common.security;
+
+
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CustomUserDetailsService implements UserDetailsService {
+    @Override public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        throw new UsernameNotFoundException(username);
+    }
+}
+
+===== ./src/main/java/com/Globoo/common/web/ApiResponse.java =====
+package com.Globoo.common.web;
+
+
+public class ApiResponse<T> {
+    public boolean success; public T data; public String error;
+    private ApiResponse(boolean s, T d, String e){ this.success=s; this.data=d; this.error=e; }
+    public static <T> ApiResponse<T> ok(T d){ return new ApiResponse<>(true, d, null); }
+    public static <T> ApiResponse<T> ok(){ return ok(null); }
+    public static <T> ApiResponse<T> fail(String e){ return new ApiResponse<>(false, null, e); }
+}
+
+===== ./src/main/java/com/Globoo/common/web/PageResponse.java =====
+package com.Globoo.common.web;
+
+
+import java.util.List;
+
+public record PageResponse<T>(List<T> content, int page, int size, long totalElements) { }
+
+===== ./src/main/java/com/Globoo/common/web/GlobalExceptionHandler.java =====
+package com.Globoo.common.web;
+
+
+import com.Globoo.common.error.BusinessException;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+    @ExceptionHandler(BusinessException.class)
+    public ResponseEntity<ApiResponse<Void>> handle(BusinessException ex){
+        return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
+    }
+}
+
+===== ./src/main/java/com/Globoo/common/error/ErrorCode.java =====
+package com.Globoo.common.error;
+
+
+public enum ErrorCode {
+    SAMPLE_ERROR
+}
+
+===== ./src/main/java/com/Globoo/common/error/BusinessException.java =====
+package com.Globoo.common.error;
+
+
+public class BusinessException extends RuntimeException {
+    public BusinessException(String message){ super(message); }
+}
+

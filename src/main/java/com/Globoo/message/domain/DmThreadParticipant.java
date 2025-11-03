@@ -1,10 +1,27 @@
 package com.Globoo.message.domain;
 
-
+import com.Globoo.user.domain.User;
 import jakarta.persistence.*;
+import lombok.*;
 
-@Entity @Table(name = "dm_thread_participants")
+@Entity
+@Table(name = "dm_thread_participants")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class DmThreadParticipant {
+
     @Id
-    private Long userId; // composite key -> 추후 @IdClass 사용
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "thread_id")
+    private DmThread thread;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id")
+    private User user;
 }
