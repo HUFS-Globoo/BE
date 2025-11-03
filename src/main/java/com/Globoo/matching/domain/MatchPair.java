@@ -17,7 +17,7 @@ public class MatchPair {
 
     @Id
     @GeneratedValue
-    private UUID id;
+    private UUID id; // 매칭 ID
 
     @Column(nullable = false)
     private Long userAId;
@@ -32,7 +32,8 @@ public class MatchPair {
     private Boolean acceptedA;
     private Boolean acceptedB;
 
-    private UUID chatRoomId;
+    // [수정] 채팅방 ID 타입을 Long 으로 변경 (DB 컬럼도 변경됨)
+    private Long chatRoomId;
     private LocalDateTime matchedAt;
     private String matchedBy;
 }

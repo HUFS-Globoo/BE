@@ -1,5 +1,10 @@
 package com.Globoo.matching.service;
 
+// 채팅 팀의 서비스 및 DTO 임포트
+import com.Globoo.chat.dto.ChatRoomCreateReqDto;
+import com.Globoo.chat.dto.ChatRoomCreateResDto;
+import com.Globoo.chat.service.ChatService;
+
 import com.Globoo.matching.domain.MatchPair;
 import com.Globoo.matching.domain.MatchQueue;
 import com.Globoo.matching.domain.MatchStatus;
@@ -20,6 +25,9 @@ public class MatchingService {
     private final MatchQueueRepository queueRepo;
     private final MatchPairRepository pairRepo;
     private final MatchingSocketHandler socketHandler;
+
+    // [!!! 추가 !!!] 채팅 서비스 주입
+    private final ChatService chatService;
 
     /**
      * ✅ 유저가 매칭 큐에 진입
@@ -86,7 +94,6 @@ public class MatchingService {
             matchQueue.setActive(false);
             queueRepo.save(matchQueue);
         });
-        // 참고: 네이티브 쿼리를 사용하지 않기 위해 MatchQueueRepository에 findByUserIdAndActiveTrue 메서드 추가 필요
     }
 
 
@@ -99,7 +106,7 @@ public class MatchingService {
     }
 
     /**
-     * ✅ 유저 수락
+     * ✅ 유저 수락 (채팅방 연동 최종 수정)
      */
     @Transactional
     public Map<String, Object> accept(UUID matchId, Long userId) {
@@ -109,10 +116,31 @@ public class MatchingService {
         if (Objects.equals(match.getUserAId(), userId)) match.setAcceptedA(true);
         if (Objects.equals(match.getUserBId(), userId)) match.setAcceptedB(true);
 
-        // 양쪽 모두 수락 시 채팅방 생성
+        // 양쪽 모두 수락 시
         if (Boolean.TRUE.equals(match.getAcceptedA()) && Boolean.TRUE.equals(match.getAcceptedB())) {
             match.setStatus(MatchStatus.ACCEPTED_BOTH);
-            match.setChatRoomId(UUID.randomUUID());
+
+            // 최종 로직
+            Long userA = match.getUserAId();
+            Long userB = match.getUserBId();
+
+            // 1. 채팅 서비스 DTO 생성 (userB를 상대로 지정)
+            // (ChatRoomCreateReqDto에 @Setter가 추가되었다고 가정)
+            ChatRoomCreateReqDto createDto = new ChatRoomCreateReqDto();
+            createDto.setParticipantUserId(userB);
+
+            // 2. 채팅 서비스 호출 (userA가 채팅방을 생성)
+            ChatRoomCreateResDto responseDto = chatService.createChatRoom(createDto, userA);
+
+            // 3. 반환된 DTO에서 "실제" Long ID 추출
+            // [!!! 수정 !!!] try-catch 제거.
+            // (ChatRoomCreateResDto에 @Getter가 추가되었다고 가정)
+            Long newRoomId = responseDto.getRoomId();
+
+            // 4. MatchPair에 실제 Long ID 저장
+            match.setChatRoomId(newRoomId);
+
+
         } else {
             match.setStatus(MatchStatus.ACCEPTED_ONE);
         }
@@ -123,7 +151,7 @@ public class MatchingService {
         data.put("success", true);
         data.put("state", match.getStatus().name());
         data.put("matchId", match.getId());
-        data.put("chatRoomId", match.getChatRoomId());
+        data.put("chatRoomId", match.getChatRoomId()); // 이제 Long 타입 ID 반환
 
         return data;
     }
