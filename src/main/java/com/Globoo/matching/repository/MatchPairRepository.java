@@ -1,8 +1,8 @@
 package com.Globoo.matching.repository;
 
 import com.Globoo.matching.domain.MatchPair;
-import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Query;
+import com.Globoo.matching.domain.MatchStatus;
+import org.springframework.data.jpa.repository.*;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
