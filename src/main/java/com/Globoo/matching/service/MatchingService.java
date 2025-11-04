@@ -57,18 +57,24 @@ public class MatchingService {
         var waitingUsers = queueRepo.findTop2ByActiveTrueOrderByEnqueuedAtAsc();
 
         if (waitingUsers.size() == 2) {
-            MatchQueue userA = waitingUsers.get(0);
-            MatchQueue userB = waitingUsers.get(1);
+            MatchQueue qA = waitingUsers.get(0);
+            MatchQueue qB = waitingUsers.get(1);
 
             // 큐 비활성화
-            userA.setActive(false);
-            userB.setActive(false);
-            queueRepo.saveAll(List.of(userA, userB));
+            qA.setActive(false);
+            qB.setActive(false);
+            queueRepo.saveAll(List.of(qA, qB));
+
+            // ✅ 유저 ID를 항상 오름차순으로 정렬해서 저장
+            Long user1 = qA.getUserId();
+            Long user2 = qB.getUserId();
+            long a = Math.min(user1, user2);
+            long b = Math.max(user1, user2);
 
             // 새 매칭 생성
             MatchPair match = new MatchPair();
-            match.setUserAId(userA.getUserId());
-            match.setUserBId(userB.getUserId());
+            match.setUserAId(a);
+            match.setUserBId(b);
             match.setStatus(MatchStatus.FOUND);
             match.setMatchedAt(LocalDateTime.now());
             match.setMatchedBy("system");
@@ -134,7 +140,7 @@ public class MatchingService {
                 req.setParticipantUserId(other);
 
                 ChatRoomCreateResDto res = chatService.createChatRoom(req, me);
-                Long roomId = res.getRoomId();// ChatRoom PK(Long)
+                Long roomId = res.getRoomId(); // ChatRoom PK(Long)
                 match.setChatRoomId(roomId);
 
                 // 양쪽에게 채팅 진입 신호
@@ -193,16 +199,22 @@ public class MatchingService {
         var waitingUsers = queueRepo.findTop2ByActiveTrueOrderByEnqueuedAtAsc();
 
         if (waitingUsers.size() == 2) {
-            MatchQueue userA = waitingUsers.get(0);
-            MatchQueue userB = waitingUsers.get(1);
+            MatchQueue qA = waitingUsers.get(0);
+            MatchQueue qB = waitingUsers.get(1);
 
-            userA.setActive(false);
-            userB.setActive(false);
-            queueRepo.saveAll(List.of(userA, userB));
+            qA.setActive(false);
+            qB.setActive(false);
+            queueRepo.saveAll(List.of(qA, qB));
+
+            // ✅ 여기서도 userId 정렬해서 저장
+            Long user1 = qA.getUserId();
+            Long user2 = qB.getUserId();
+            long a = Math.min(user1, user2);
+            long b = Math.max(user1, user2);
 
             MatchPair newMatch = new MatchPair();
-            newMatch.setUserAId(userA.getUserId());
-            newMatch.setUserBId(userB.getUserId());
+            newMatch.setUserAId(a);
+            newMatch.setUserBId(b);
             newMatch.setStatus(MatchStatus.FOUND);
             newMatch.setMatchedAt(LocalDateTime.now());
             newMatch.setMatchedBy("system");

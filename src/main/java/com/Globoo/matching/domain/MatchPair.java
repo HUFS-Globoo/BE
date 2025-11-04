@@ -34,7 +34,7 @@ public class MatchPair {
     private Boolean acceptedB;
 
     /** ChatRoom PK와 타입 일치 (Long) */
-    @Column(name = "chat_room_id")
+    @Column(name = "chat_room_id") //db 구조확인
     private Long chatRoomId;
 
     private LocalDateTime matchedAt;

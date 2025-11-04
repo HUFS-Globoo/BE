@@ -11,3 +11,4 @@ public class ChatRoomCreateReqDto {
     private Long participantUserId; // 상대방(매칭된 사람2)의 ID
 }
 
+//pr 동일
