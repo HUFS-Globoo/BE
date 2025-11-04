@@ -36,6 +36,7 @@ public class SwaggerConfig {
     public GroupedOpenApi apiAll() {
         return GroupedOpenApi.builder()
                 .group("api")
+                .packagesToScan("com.Globoo")
                 .pathsToMatch("/api/**")
                 .build();
     }

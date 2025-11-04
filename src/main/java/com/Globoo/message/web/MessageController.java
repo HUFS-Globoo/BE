@@ -56,7 +56,7 @@ public class MessageController {
                 .orElseThrow(() -> new RuntimeException("파트너 유저 없음"));
         return messageService.sendMessage(sender, receiver, dto.getContent());
     }
-
+//쪽지방이 잇는경우에는 처리되엇는지에 대해
 
     @PostMapping("/{partnerId}/read")
     @Operation(summary = "쪽지 읽음 처리", description = "상대방이 쪽지를 읽으면 쪽지 읽음 처리")

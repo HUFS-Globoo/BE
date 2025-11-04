@@ -8,3 +8,4 @@ import lombok.Getter;
 public class ChatRoomCreateResDto {
     private Long roomId; // 생성된 채팅방 ID
 }
+//pr 차이

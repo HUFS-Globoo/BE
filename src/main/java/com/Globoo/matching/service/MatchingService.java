@@ -1,5 +1,9 @@
+// src/main/java/com/Globoo/matching/service/MatchingService.java
 package com.Globoo.matching.service;
 
+import com.Globoo.chat.dto.ChatRoomCreateReqDto;
+import com.Globoo.chat.dto.ChatRoomCreateResDto;
+import com.Globoo.chat.service.ChatService;
 import com.Globoo.matching.domain.MatchPair;
 import com.Globoo.matching.domain.MatchQueue;
 import com.Globoo.matching.domain.MatchStatus;
@@ -13,6 +17,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.*;
 
+/**
+ * 랜덤 매칭 → 수락 → 채팅방 연결까지 담당.
+ * 핵심:
+ *  - accept()에서 MatchPair를 PESSIMISTIC_WRITE로 잠그고
+ *  - 둘 다 수락 시 ChatRoom을 단 한 번만 생성(get-or-create)
+ *  - 생성된 roomId를 양쪽에 WS로 CHAT_READY 전송
+ *
+ * 주의:
+ *  - MatchPair.chatRoomId는 ChatRoom.id와 타입이 맞아야 함(Long).
+ */
 @Service
 @RequiredArgsConstructor
 public class MatchingService {
@@ -20,6 +34,7 @@ public class MatchingService {
     private final MatchQueueRepository queueRepo;
     private final MatchPairRepository pairRepo;
     private final MatchingSocketHandler socketHandler;
+    private final ChatService chatService;
 
     /**
      * ✅ 유저가 매칭 큐에 진입
@@ -42,24 +57,30 @@ public class MatchingService {
         var waitingUsers = queueRepo.findTop2ByActiveTrueOrderByEnqueuedAtAsc();
 
         if (waitingUsers.size() == 2) {
-            MatchQueue userA = waitingUsers.get(0);
-            MatchQueue userB = waitingUsers.get(1);
+            MatchQueue qA = waitingUsers.get(0);
+            MatchQueue qB = waitingUsers.get(1);
 
             // 큐 비활성화
-            userA.setActive(false);
-            userB.setActive(false);
-            queueRepo.saveAll(List.of(userA, userB));
+            qA.setActive(false);
+            qB.setActive(false);
+            queueRepo.saveAll(List.of(qA, qB));
+
+            // ✅ 유저 ID를 항상 오름차순으로 정렬해서 저장
+            Long user1 = qA.getUserId();
+            Long user2 = qB.getUserId();
+            long a = Math.min(user1, user2);
+            long b = Math.max(user1, user2);
 
             // 새 매칭 생성
             MatchPair match = new MatchPair();
-            match.setUserAId(userA.getUserId());
-            match.setUserBId(userB.getUserId());
+            match.setUserAId(a);
+            match.setUserBId(b);
             match.setStatus(MatchStatus.FOUND);
             match.setMatchedAt(LocalDateTime.now());
             match.setMatchedBy("system");
             pairRepo.save(match);
 
-            // 웹소켓 알림
+            // 웹소켓 알림 (MATCH_FOUND)
             sendFoundNotification(match);
 
             result.put("success", true);
@@ -76,19 +97,15 @@ public class MatchingService {
     }
 
     /**
-     * ✅ 대기열 이탈 (Controller에서 사용하기 위해 추가)
+     * ✅ 대기열 이탈
      */
     @Transactional
     public void leaveQueue(Long userId) {
-        // active: true 인 큐 항목을 찾아서
-        queueRepo.findByUserIdAndActiveTrue(userId).ifPresent(matchQueue -> {
-            // active: false 로 변경
-            matchQueue.setActive(false);
-            queueRepo.save(matchQueue);
+        queueRepo.findByUserIdAndActiveTrue(userId).ifPresent(q -> {
+            q.setActive(false);
+            queueRepo.save(q);
         });
-        // 참고: 네이티브 쿼리를 사용하지 않기 위해 MatchQueueRepository에 findByUserIdAndActiveTrue 메서드 추가 필요
     }
-
 
     /**
      * ✅ 현재 매칭 상태 조회
@@ -99,20 +116,42 @@ public class MatchingService {
     }
 
     /**
-     * ✅ 유저 수락
+     * ✅ 유저 수락 (동시성 안전 + 방 1회 생성 + CHAT_READY 알림)
      */
     @Transactional
     public Map<String, Object> accept(UUID matchId, Long userId) {
-        MatchPair match = pairRepo.findById(matchId)
+        // 동시 수락 경쟁 방지: 행 잠금
+        MatchPair match = pairRepo.findByIdForUpdate(matchId)
                 .orElseThrow(() -> new NoSuchElementException("match not found"));
 
         if (Objects.equals(match.getUserAId(), userId)) match.setAcceptedA(true);
         if (Objects.equals(match.getUserBId(), userId)) match.setAcceptedB(true);
 
-        // 양쪽 모두 수락 시 채팅방 생성
         if (Boolean.TRUE.equals(match.getAcceptedA()) && Boolean.TRUE.equals(match.getAcceptedB())) {
             match.setStatus(MatchStatus.ACCEPTED_BOTH);
-            match.setChatRoomId(UUID.randomUUID());
+
+            // 이미 방이 있으면 재사용, 없으면 이제 한 번만 생성
+            if (match.getChatRoomId() == null) {
+                Long me = match.getUserAId();
+                Long other = match.getUserBId();
+
+                // DTO는 기본 생성자 + 세터 사용
+                ChatRoomCreateReqDto req = new ChatRoomCreateReqDto();
+                req.setParticipantUserId(other);
+
+                ChatRoomCreateResDto res = chatService.createChatRoom(req, me);
+                Long roomId = res.getRoomId(); // ChatRoom PK(Long)
+                match.setChatRoomId(roomId);
+
+                // 양쪽에게 채팅 진입 신호
+                Map<String, Object> payload = Map.of(
+                        "type", "CHAT_READY",
+                        "matchId", match.getId(),
+                        "roomId", roomId
+                );
+                socketHandler.sendToUser(match.getUserAId(), payload);
+                socketHandler.sendToUser(match.getUserBId(), payload);
+            }
         } else {
             match.setStatus(MatchStatus.ACCEPTED_ONE);
         }
@@ -124,30 +163,26 @@ public class MatchingService {
         data.put("state", match.getStatus().name());
         data.put("matchId", match.getId());
         data.put("chatRoomId", match.getChatRoomId());
-
         return data;
     }
 
     /**
-     * ✅ 스킵 & 자동 재매칭 (요구사항 핵심)
+     * ✅ 스킵 & 자동 재매칭
      */
     @Transactional
     public Map<String, Object> skipAndRequeue(UUID matchId, Long userId) {
         MatchPair match = pairRepo.findById(matchId)
                 .orElseThrow(() -> new NoSuchElementException("match not found"));
 
-        // 매칭 상태 변경 (SKIPPED)
         match.setStatus(MatchStatus.SKIPPED);
         pairRepo.save(match);
 
         Long userA = match.getUserAId();
         Long userB = match.getUserBId();
 
-        // 두 유저 모두 재큐잉 (요구사항)
         queueRepo.save(new MatchQueue(userA, true, LocalDateTime.now()));
         queueRepo.save(new MatchQueue(userB, true, LocalDateTime.now()));
 
-        // 💡 즉시 재매칭 시도
         autoRematch();
 
         Map<String, Object> data = new HashMap<>();
@@ -164,22 +199,27 @@ public class MatchingService {
         var waitingUsers = queueRepo.findTop2ByActiveTrueOrderByEnqueuedAtAsc();
 
         if (waitingUsers.size() == 2) {
-            MatchQueue userA = waitingUsers.get(0);
-            MatchQueue userB = waitingUsers.get(1);
+            MatchQueue qA = waitingUsers.get(0);
+            MatchQueue qB = waitingUsers.get(1);
 
-            userA.setActive(false);
-            userB.setActive(false);
-            queueRepo.saveAll(List.of(userA, userB));
+            qA.setActive(false);
+            qB.setActive(false);
+            queueRepo.saveAll(List.of(qA, qB));
+
+            // ✅ 여기서도 userId 정렬해서 저장
+            Long user1 = qA.getUserId();
+            Long user2 = qB.getUserId();
+            long a = Math.min(user1, user2);
+            long b = Math.max(user1, user2);
 
             MatchPair newMatch = new MatchPair();
-            newMatch.setUserAId(userA.getUserId());
-            newMatch.setUserBId(userB.getUserId());
+            newMatch.setUserAId(a);
+            newMatch.setUserBId(b);
             newMatch.setStatus(MatchStatus.FOUND);
             newMatch.setMatchedAt(LocalDateTime.now());
             newMatch.setMatchedBy("system");
             pairRepo.save(newMatch);
 
-            // 새 매칭 알림
             sendFoundNotification(newMatch);
         }
     }
