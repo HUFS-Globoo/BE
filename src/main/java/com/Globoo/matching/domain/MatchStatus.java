@@ -1,4 +1,9 @@
 package com.Globoo.matching.domain;
 
-public class MatchStatus {
+public enum MatchStatus {
+    WAITING,
+    FOUND,
+    SKIPPED,
+    ACCEPTED_ONE,
+    ACCEPTED_BOTH
 }

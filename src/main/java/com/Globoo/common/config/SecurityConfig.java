@@ -40,16 +40,18 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    JwtAuthenticationFilter jwtFilter) throws Exception {
         http
+                // 이 체인은 아래 경로에만 적용
                 .securityMatcher("/api/**", "/ws/**", "/v3/api-docs/**", "/swagger-ui/**")
                 .cors(Customizer.withDefaults())
+                // JWT 이므로 CSRF 불필요
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll() // CORS 프리플라이트
-                        .requestMatchers("/api/auth/**").permitAll()            // 로그인/회원가입
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()     // CORS preflight
+                        .requestMatchers(SWAGGER_WHITELIST).permitAll()             // Swagger
+                        .requestMatchers("/api/auth/**").permitAll()                // 로그인/회원가입
                         .requestMatchers("/api/keywords/**", "/api/languages/**", "/api/countries/**").permitAll()
-                        .requestMatchers(SWAGGER_WHITELIST).permitAll()
-                        .requestMatchers("/ws/**").permitAll()                  // STOMP 핸드셰이크
+                        .requestMatchers("/ws/**").permitAll()                      // STOMP 핸드셰이크
                         .anyRequest().authenticated()
                 )
                 .httpBasic(b -> b.disable())
@@ -63,19 +65,15 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
-
-        //배포용: 프론트 도메인만 허용_사용할때는 도메인 예시로 변경해야함
+        // 필요 시 yml 로 분리 추천
         c.setAllowedOrigins(List.of(
                 "http://localhost:3000",
                 "http://127.0.0.1:3000",
-                "https://YOUR_FRONTEND_DOMAIN"   // 예시: https://globoo.hufs.ac.kr
+                "https://YOUR_FRONTEND_DOMAIN" // 예: https://globoo.hufs.ac.kr
         ));
         c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-        // Authorization 명시적 허용
         c.setAllowedHeaders(List.of("Authorization","Content-Type","Accept","Origin","X-Requested-With"));
-        // 필요하면 노출
-        // c.setExposedHeaders(List.of("Authorization"));
-        c.setAllowCredentials(false); // 쿠키로 JWT 쓸 계획이면 true + AllowedOrigins에 * 금지: 응 근데 안씀
+        c.setAllowCredentials(false); // 쿠키 미사용
 
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
         src.registerCorsConfiguration("/**", c);

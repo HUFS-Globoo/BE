@@ -1,6 +1,6 @@
 package com.Globoo.chat.domain;
 
-import com.Globoo.user.domain.User; // (auth.domain.User 가정)
+import com.Globoo.user.domain.User;
 import com.Globoo.common.domain.BaseTimeEntity;
 import jakarta.persistence.*;
 import lombok.AccessLevel;

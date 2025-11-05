@@ -23,8 +23,11 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-mail'
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 
-	// DB
-	runtimeOnly 'com.mysql:mysql-connector-j'
+	// DB 개발용
+	//runtimeOnly 'com.mysql:mysql-connector-j'
+	// DB 실제 배ㅑ포용
+	runtimeOnly 'org.postgresql:postgresql'
+
 
 
 	// OpenAPI/Swagger

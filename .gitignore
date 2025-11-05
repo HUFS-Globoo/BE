@@ -36,18 +36,22 @@ out/
 ### VS Code ###
 .vscode/
 
-# 환경별 민감정보 파일
-src/main/resources/application.yml
-# 개인 로컬 설정 (공유 금지)
-src/main/resources/application-dev.yml
-
-# 추가 ignore (보안 및 환경 파일)
+# 민감정보 포함될 수 있는 파일만 무시
 src/main/resources/application-local.yml
-src/main/resources/application-prod.yml
+src/main/resources/application-secret.yml
+src/main/resources/application-private.yml
+src/main/resources/application-prod-private.yml
 
-# 환경변수 파일 (.env 계열)
+# 예시용, 환경변수 기반 설정파일은 허용
+!src/main/resources/application.yml
+!src/main/resources/application-dev.yml
+!src/main/resources/application-prod.yml
+!src/main/resources/application-example.yml
+
+# 환경 변수 파일 (.env 계열)
 .env
 .env.*
+*.env
 
 # 로그 및 임시파일
 logs/
@@ -59,6 +63,3 @@ replay_pid*
 # OS / 기타 불필요 파일
 .DS_Store
 Thumbs.db
-
-# 예시용 application 파일은 커밋 허용
-!src/main/resources/application-example.yml

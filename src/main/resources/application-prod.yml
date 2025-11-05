@@ -1,0 +1,18 @@
+# application-prod.yml
+
+spring:
+  datasource:
+    url: ${DB_URL}          # 예: jdbc:postgresql://host:5432/dbname
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver # 배포를 koyeb으로 하니까 바꿔줘야해용
+
+
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  sql:
+    init:
+      mode: never
