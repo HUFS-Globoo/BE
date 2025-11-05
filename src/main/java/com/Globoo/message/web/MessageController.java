@@ -25,7 +25,7 @@ public class MessageController {
     @Operation(summary = "쪽지방 목록 조회", description = "로그인 한 유저의 쪽지방 목록 조회")
     public List<MessageResDto.ThreadDto> getThreads(Authentication authentication) {
         User me = getLoggedInUser(authentication);
-        return messageService.getThreads(me); // DTO 반환
+        return messageService.getThreads(me);
     }
 
     // 특정 상대와 쪽지 목록 조회
@@ -35,7 +35,7 @@ public class MessageController {
                                            @PathVariable Long partnerId) {
         User me = getLoggedInUser(authentication);
         User partner = getUserById(partnerId);
-        return messageService.getMessages(me, partner); // DTO 반환
+        return messageService.getMessages(me, partner);
     }
 
     // 쪽지 보내기
@@ -45,7 +45,7 @@ public class MessageController {
                                      @RequestBody MessageReqDto dto) {
         User sender = getLoggedInUser(authentication);
         User receiver = getUserById(dto.getPartnerId());
-        return messageService.sendMessage(sender, receiver, dto.getContent()); // DTO 반환
+        return messageService.sendMessage(sender, receiver, dto.getContent());
     }
 
     // 쪽지 읽음 처리

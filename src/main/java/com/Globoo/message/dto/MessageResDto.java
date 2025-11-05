@@ -1,4 +1,3 @@
-// src/main/java/com/Globoo/message/dto/MessageResDto.java
 package com.Globoo.message.dto;
 
 import lombok.AllArgsConstructor;
@@ -32,7 +31,7 @@ public class MessageResDto {
         private String profileImageUrl;
     }
 
-    // DmThread용 DTO
+    // DmThread용 dto
     @Getter
     @Setter
     @Builder

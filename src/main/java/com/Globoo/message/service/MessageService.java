@@ -22,7 +22,7 @@ public class MessageService {
     private final DmThreadRepository threadRepository;
     private final DirectMessageRepository messageRepository;
 
-    // DTO 변환 유틸
+    // dto 변환 유틸
     private MessageResDto.UserSummaryDto toUserSummary(User user) {
         return MessageResDto.UserSummaryDto.builder()
                 .id(user.getId())
