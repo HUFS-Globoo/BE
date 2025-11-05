@@ -10,6 +10,9 @@ import com.Globoo.matching.domain.MatchStatus;
 import com.Globoo.matching.repository.MatchPairRepository;
 import com.Globoo.matching.repository.MatchQueueRepository;
 import com.Globoo.matching.web.MatchingSocketHandler;
+// [!!!] 2개의 import 문을 추가합니다.
+import com.Globoo.profile.dto.ProfileCardRes;
+import com.Globoo.profile.service.ProfileService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,12 +23,12 @@ import java.util.*;
 /**
  * 랜덤 매칭 → 수락 → 채팅방 연결까지 담당.
  * 핵심:
- *  - accept()에서 MatchPair를 PESSIMISTIC_WRITE로 잠그고
- *  - 둘 다 수락 시 ChatRoom을 단 한 번만 생성(get-or-create)
- *  - 생성된 roomId를 양쪽에 WS로 CHAT_READY 전송
+ * - accept()에서 MatchPair를 PESSIMISTIC_WRITE로 잠그고
+ * - 둘 다 수락 시 ChatRoom을 단 한 번만 생성(get-or-create)
+ * - 생성된 roomId를 양쪽에 WS로 CHAT_READY 전송
  *
  * 주의:
- *  - MatchPair.chatRoomId는 ChatRoom.id와 타입이 맞아야 함(Long).
+ * - MatchPair.chatRoomId는 ChatRoom.id와 타입이 맞아야 함(Long).
  */
 @Service
 @RequiredArgsConstructor
@@ -35,6 +38,8 @@ public class MatchingService {
     private final MatchPairRepository pairRepo;
     private final MatchingSocketHandler socketHandler;
     private final ChatService chatService;
+    // [!!!] ProfileService 필드를 추가합니다.
+    private final ProfileService profileService;
 
     /**
      * ✅ 유저가 매칭 큐에 진입
@@ -81,7 +86,7 @@ public class MatchingService {
             pairRepo.save(match);
 
             // 웹소켓 알림 (MATCH_FOUND)
-            sendFoundNotification(match);
+            sendFoundNotification(match); // [!!!] 수정된 메서드가 호출됩니다.
 
             result.put("success", true);
             result.put("status", "FOUND");
@@ -220,22 +225,41 @@ public class MatchingService {
             newMatch.setMatchedBy("system");
             pairRepo.save(newMatch);
 
-            sendFoundNotification(newMatch);
+            sendFoundNotification(newMatch); // 수정된 메서드가 호출됩니다.
         }
     }
 
     /**
-     * ✅ WebSocket 알림 (매칭 성사)
+     * ✅ WebSocket 알림 (매칭 성사) - 수정된 버전.
      */
     private void sendFoundNotification(MatchPair match) {
-        Map<String, Object> payload = Map.of(
+        Long userAId = match.getUserAId();
+        Long userBId = match.getUserBId();
+
+        // 1. 양쪽 유저의 프로필 카드를 조회합니다.
+        ProfileCardRes profileA = profileService.getProfileCard(userAId);
+        ProfileCardRes profileB = profileService.getProfileCard(userBId);
+
+        // 2. UserA에게 보낼 메시지 (상대방 = profileB)
+        Map<String, Object> payloadForA = Map.of(
                 "type", "MATCH_FOUND",
                 "matchId", match.getId(),
-                "userAId", match.getUserAId(),
-                "userBId", match.getUserBId(),
+                "myId", userAId,
+                "opponentProfile", profileB, // A에게는 B의 프로필을 전송
                 "status", match.getStatus().name()
         );
-        socketHandler.sendToUser(match.getUserAId(), payload);
-        socketHandler.sendToUser(match.getUserBId(), payload);
+
+        // 3. UserB에게 보낼 메시지 (상대방 = profileA)
+        Map<String, Object> payloadForB = Map.of(
+                "type", "MATCH_FOUND",
+                "matchId", match.getId(),
+                "myId", userBId,
+                "opponentProfile", profileA, // B에게는 A의 프로필을 전송
+                "status", match.getStatus().name()
+        );
+
+        // 4. 각자에게 맞는 메시지를 전송
+        socketHandler.sendToUser(userAId, payloadForA);
+        socketHandler.sendToUser(userBId, payloadForB);
     }
 }

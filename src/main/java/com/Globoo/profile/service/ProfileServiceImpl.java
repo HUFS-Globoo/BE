@@ -1,4 +1,3 @@
-// src/main/java/com/Globoo/profile/service/ProfileServiceImpl.java
 package com.Globoo.profile.service;
 
 import com.Globoo.profile.dto.KeywordDto;
@@ -93,41 +92,62 @@ public class ProfileServiceImpl implements ProfileService {
 
         Page<Profile> page = repo.findAll(spec, pageable);
 
-        List<ProfileCardRes> content = page.getContent().stream().map(p -> {
-            User u = p.getUser();
-
-            var userLangs = u.getUserLanguages();
-            List<LanguageDto> nativeDtos = userLangs.stream()
-                    .filter(l -> l.getType() == LanguageType.NATIVE)
-                    .map(l -> new LanguageDto(l.getLanguage().getCode(), l.getLanguage().getName()))
-                    .toList();
-
-            List<LanguageDto> learnDtos = userLangs.stream()
-                    .filter(l -> l.getType() == LanguageType.LEARN)
-                    .map(l -> new LanguageDto(l.getLanguage().getCode(), l.getLanguage().getName()))
-                    .toList();
-
-            var keywordDtos = u.getUserKeywords().stream()
-                    .map(UserKeyword::getKeyword)
-                    .map(k -> new KeywordDto(k.getId(), k.getName()))
-                    .toList();
-
-            return new ProfileCardRes(
-                    u.getId(),
-                    p.getNickname(),
-                    p.getCampus(),
-                    p.getCountry(),
-                    p.getMbti(),
-                    p.getProfileImage(),
-                    nativeDtos,
-                    learnDtos,
-                    keywordDtos,
-                    p.getInfoTitle(),
-                    p.getInfoContent()
-            );
-        }).collect(Collectors.toList());
+        //  중복 로직을 convertProfileToCardDto 메서드로 분리
+        List<ProfileCardRes> content = page.getContent().stream()
+                .map(this::convertProfileToCardDto)
+                .collect(Collectors.toList());
 
         return new PageImpl<>(content, pageable, page.getTotalElements());
+    }
+
+    /**
+     *  MatchingService에서 사용할 수 있도록 이 메서드를 구현.
+     */
+    @Override
+    public ProfileCardRes getProfileCard(Long userId) {
+        // 1. User ID로 프로필을 가져옴 (User 정보 포함).
+        Profile p = repo.findByUserIdWithUser(userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "profile not found for user: " + userId));
+
+        // 2. Profile 엔티티를 ProfileCardRes DTO로 변환.
+        return convertProfileToCardDto(p);
+    }
+
+    /**
+     *  중복 로직을 이 메서드로 분리 (search, getProfileCard가 공통 사용).
+     */
+    private ProfileCardRes convertProfileToCardDto(Profile p) {
+        User u = p.getUser();
+
+        var userLangs = u.getUserLanguages();
+        List<LanguageDto> nativeDtos = userLangs.stream()
+                .filter(l -> l.getType() == LanguageType.NATIVE)
+                .map(l -> new LanguageDto(l.getLanguage().getCode(), l.getLanguage().getName()))
+                .toList();
+
+        List<LanguageDto> learnDtos = userLangs.stream()
+                .filter(l -> l.getType() == LanguageType.LEARN)
+                .map(l -> new LanguageDto(l.getLanguage().getCode(), l.getLanguage().getName()))
+                .toList();
+
+        var keywordDtos = u.getUserKeywords().stream()
+                .map(UserKeyword::getKeyword)
+                .map(k -> new KeywordDto(k.getId(), k.getName()))
+                .toList();
+
+        return new ProfileCardRes(
+                u.getId(),
+                p.getNickname(),
+                p.getCampus(),
+                p.getCountry(),
+                p.getMbti(),
+                p.getProfileImage(),
+                nativeDtos,
+                learnDtos,
+                keywordDtos,
+                p.getInfoTitle(),
+                p.getInfoContent()
+        );
     }
 
     private String mask(String email) {

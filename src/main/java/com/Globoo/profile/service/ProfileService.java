@@ -18,4 +18,6 @@ public interface ProfileService {
             List<Long> keywordIds,
             Pageable pageable
     );
+    // getProfileCard 메서드 선언 추가.
+    ProfileCardRes getProfileCard(Long userId);
 }
