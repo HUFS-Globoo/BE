@@ -2,6 +2,7 @@ package com.Globoo.message.service;
 
 import com.Globoo.message.domain.DirectMessage;
 import com.Globoo.message.domain.DmThread;
+import com.Globoo.message.dto.MessageResDto;
 import com.Globoo.message.repository.DirectMessageRepository;
 import com.Globoo.message.repository.DmThreadRepository;
 import com.Globoo.user.domain.User;
@@ -11,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -20,31 +22,70 @@ public class MessageService {
     private final DmThreadRepository threadRepository;
     private final DirectMessageRepository messageRepository;
 
+    // DTO 변환 유틸
+    private MessageResDto.UserSummaryDto toUserSummary(User user) {
+        return MessageResDto.UserSummaryDto.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .profileImageUrl(user.getProfileImageUrl())
+                .build();
+    }
 
-    // 조회 전용 메서드 (readOnly = true)
+    private MessageResDto toMessageResDto(DirectMessage message) {
+        return MessageResDto.builder()
+                .id(message.getId())
+                .sender(toUserSummary(message.getSender()))
+                .receiver(toUserSummary(message.getReceiver()))
+                .content(message.getContent())
+                .isRead(message.getIsRead())
+                .createdAt(message.getCreatedAt())
+                .build();
+    }
+
+    private MessageResDto.ThreadDto toThreadDto(DmThread thread) {
+        List<MessageResDto> messages = thread.getMessages().stream()
+                .map(this::toMessageResDto)
+                .collect(Collectors.toList());
+        return MessageResDto.ThreadDto.builder()
+                .id(thread.getId())
+                .user1(toUserSummary(thread.getUser1()))
+                .user2(toUserSummary(thread.getUser2()))
+                .createdAt(thread.getCreatedAt())
+                .messages(messages)
+                .build();
+    }
+
+    // 조회
     @Transactional(readOnly = true)
-    public List<DmThread> getThreads(User user) {
-        return threadRepository.findByUser1OrUser2(user, user);
+    public List<MessageResDto.ThreadDto> getThreads(User user) {
+        List<DmThread> threads = threadRepository.findByUser1OrUser2(user, user);
+        return threads.stream()
+                .map(this::toThreadDto)
+                .collect(Collectors.toList());
     }
 
     @Transactional(readOnly = true)
-    public List<DirectMessage> getMessages(User me, User partner) {
+    public List<MessageResDto> getMessages(User me, User partner) {
         Optional<DmThread> threadOpt = findThread(me, partner);
-        if (threadOpt.isEmpty()) return List.of(); // Thread 없으면 빈 리스트 반환
-        return messageRepository.findByThreadOrderByCreatedAtAsc(threadOpt.get());
+        if (threadOpt.isEmpty()) return List.of();
+        return threadOpt.get().getMessages().stream()
+                .map(this::toMessageResDto)
+                .collect(Collectors.toList());
     }
 
-
-    // 쓰기 가능한 메서드
+    // 쓰기
     public DmThread getOrCreateThread(User me, User partner) {
         return threadRepository.findByUser1AndUser2(me, partner)
                 .or(() -> threadRepository.findByUser1AndUser2(partner, me))
                 .orElseGet(() -> threadRepository.save(
-                        DmThread.builder().user1(me).user2(partner).build()
+                        DmThread.builder()
+                                .user1(me)
+                                .user2(partner)
+                                .build()
                 ));
     }
 
-    public DirectMessage sendMessage(User sender, User receiver, String content) {
+    public MessageResDto sendMessage(User sender, User receiver, String content) {
         DmThread thread = getOrCreateThread(sender, receiver);
         DirectMessage message = DirectMessage.builder()
                 .thread(thread)
@@ -52,7 +93,8 @@ public class MessageService {
                 .receiver(receiver)
                 .content(content)
                 .build();
-        return messageRepository.save(message);
+        DirectMessage saved = messageRepository.save(message);
+        return toMessageResDto(saved);
     }
 
     public void markAsRead(User me, User partner) {
@@ -61,8 +103,7 @@ public class MessageService {
         unread.forEach(DirectMessage::markAsRead);
     }
 
-
-    // 조회용 Thread 찾기 (readOnly 안전)
+    // 조회용 Thread
     @Transactional(readOnly = true)
     public Optional<DmThread> findThread(User me, User partner) {
         return threadRepository.findByUser1AndUser2(me, partner)
