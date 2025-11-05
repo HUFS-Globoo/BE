@@ -1,6 +1,7 @@
 package com.Globoo.message.domain;
 
 import com.Globoo.user.domain.User;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -21,6 +22,7 @@ public class DirectMessage {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "thread_id", nullable = false)
+    @JsonIgnore
     private DmThread thread;
 
     @ManyToOne(fetch = FetchType.LAZY)
