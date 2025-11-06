@@ -1,3 +1,4 @@
+/*
 package com.Globoo.common.config;
 
 
@@ -20,3 +21,7 @@ public class CorsConfig {
         return new CorsFilter(source);
     }
 }
+*/
+
+
+// 실제 배포에서 Cors 요게 연동관련해서 문제를 주기 때문에 비활성화 처리

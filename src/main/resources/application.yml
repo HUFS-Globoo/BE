@@ -1,12 +1,9 @@
-# application.yml
 server:
   port: ${PORT:8080}
 
 spring:
   application:
     name: Globoo
-#  profiles: 잠시 주석처리좀 할게요!
- #   active: dev  # 개발에서 실제 발송하려면 dev 유지, 콘솔만 보고 싶으면 local로 바꾸기
 
   jpa:
     open-in-view: false

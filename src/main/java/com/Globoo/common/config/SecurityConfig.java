@@ -42,17 +42,16 @@ public class SecurityConfig {
         http
                 // 이 체인은 아래 경로에만 적용
                 .securityMatcher("/api/**", "/ws/**", "/v3/api-docs/**", "/swagger-ui/**")
-                .cors(Customizer.withDefaults())
-                // JWT 이므로 CSRF 불필요
-                .csrf(csrf -> csrf.disable())
+                .cors(Customizer.withDefaults()) // CORS 허용
+                .csrf(csrf -> csrf.disable())    // JWT 환경에서는 CSRF 불필요
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()     // CORS preflight
-                        .requestMatchers(SWAGGER_WHITELIST).permitAll()             // Swagger
-                        .requestMatchers("/api/auth/**").permitAll()                // 로그인/회원가입
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()     // CORS preflight 허용
+                        .requestMatchers(SWAGGER_WHITELIST).permitAll()             // Swagger 접근 허용
+                        .requestMatchers("/api/auth/**").permitAll()                // 로그인/회원가입 허용
                         .requestMatchers("/api/keywords/**", "/api/languages/**", "/api/countries/**").permitAll()
-                        .requestMatchers("/ws/**").permitAll()                      // STOMP 핸드셰이크
-                        .anyRequest().authenticated()
+                        .requestMatchers("/ws/**").permitAll()                      // STOMP 핸드셰이크 허용
+                        .anyRequest().authenticated()                               // 나머지는 인증 필요
                 )
                 .httpBasic(b -> b.disable())
                 .formLogin(f -> f.disable())
@@ -65,15 +64,19 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
-        // 필요 시 yml 로 분리 추천
+
+        // 실제 배포 환경 기준으로 허용할 Origin 설정
         c.setAllowedOrigins(List.of(
-                "http://localhost:3000",
-                "http://127.0.0.1:3000",
-                "https://YOUR_FRONTEND_DOMAIN" // 예: https://globoo.hufs.ac.kr
+                "http://localhost:3000",                            // 로컬 프론트 테스트용
+                "http://127.0.0.1:3000",                            // 대체 로컬 주소
+                "https://instant-gretta-globoo-16d715dd.koyeb.app"  // Koyeb public URL (Swagger / 백엔드)
+                // 추후 프론트가 배포되면 아래에 프론트 URL 추가
+                // 예: "https://globoo-frontend.vercel.app"
         ));
+
         c.setAllowedMethods(List.of("GET","POST","PUT","PATCH","DELETE","OPTIONS"));
-        c.setAllowedHeaders(List.of("Authorization","Content-Type","Accept","Origin","X-Requested-With"));
-        c.setAllowCredentials(false); // 쿠키 미사용
+        c.setAllowedHeaders(List.of("*"));
+        c.setAllowCredentials(true);  // JWT Authorization 헤더 사용 가능
 
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
         src.registerCorsConfiguration("/**", c);

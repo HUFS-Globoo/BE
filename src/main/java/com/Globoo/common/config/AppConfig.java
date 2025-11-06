@@ -25,4 +25,4 @@ public class AppConfig {
                 "/api/users/" + userId + "/profile-image" // 아바타 URL (임시)
         );
     }*/
-}
+} // 요건 걍 개발용에서 있던거
