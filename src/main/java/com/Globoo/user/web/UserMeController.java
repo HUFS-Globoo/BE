@@ -1,15 +1,24 @@
 // src/main/java/com/Globoo/user/web/UserMeController.java
 package com.Globoo.user.web;
 
-import com.Globoo.common.security.SecurityUtils;   // 여기!
+import com.Globoo.common.security.SecurityUtils;
 import com.Globoo.user.dto.*;
 import com.Globoo.user.service.UserMeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/users/me")
@@ -19,10 +28,14 @@ public class UserMeController {
 
     private final UserMeService svc;
 
+    // 프로필 이미지가 저장될 실제 디렉토리 (application.yml / application-prod.yml 에서 설정)
+    @Value("${globoo.upload.profile-dir:/app/uploads/profile/}")
+    private String profileUploadDir;
+
     @GetMapping
     @Operation(summary = "내 정보 조회")
     public MyPageRes me() {
-        Long uid = SecurityUtils.requiredUserId();  //  Sec → SecurityUtils
+        Long uid = SecurityUtils.requiredUserId();
         return svc.getMyPage(uid);
     }
 
@@ -63,14 +76,41 @@ public class UserMeController {
 
     @PostMapping(value = "/profile-image", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "프로필 이미지 업로드")
-    public void upload(@RequestPart("file") MultipartFile file) throws Exception {
+    public void upload(@RequestPart("file") MultipartFile file) {
         Long uid = SecurityUtils.requiredUserId();
-        // 샘플: 로컬 저장 (운영은 S3 등으로 교체)
-        String filename = System.currentTimeMillis() + "_" + file.getOriginalFilename();
-        java.nio.file.Path dest = java.nio.file.Paths.get("uploads").resolve(filename);
-        java.nio.file.Files.createDirectories(dest.getParent());
-        file.transferTo(dest.toFile());
-        String url = "/uploads/" + filename; // 정적 서빙 매핑 필요(스프링 리소스 핸들러)
-        svc.updateProfileImage(uid, url);
+
+        if (file == null || file.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "파일이 비어 있습니다.");
+        }
+
+        try {
+            // 1) 업로드 디렉토리 보장
+            Path uploadDir = Paths.get(profileUploadDir);
+            Files.createDirectories(uploadDir);
+
+            // 2) 파일명 생성 (UUID + 확장자)
+            String originalName = file.getOriginalFilename();
+            String ext = "";
+            if (originalName != null && originalName.lastIndexOf('.') != -1) {
+                ext = originalName.substring(originalName.lastIndexOf('.')); // ".jpg" 등
+            }
+            String filename = UUID.randomUUID() + ext;
+
+            // 3) 실제 저장
+            Path dest = uploadDir.resolve(filename);
+            file.transferTo(dest.toFile());
+
+            // 4) DB에 저장할 URL (정적 리소스 매핑과 맞춰야 함)
+            String url = "/uploads/profile/" + filename;
+
+            svc.updateProfileImage(uid, url);
+
+        } catch (IOException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "프로필 이미지 업로드에 실패했습니다.",
+                    e
+            );
+        }
     }
 }
