@@ -102,7 +102,7 @@ public class AuthService {
         // 5) 이메일 인증 발송
         emailVerif.issueAndSend(u);
 
-        return new SignupRes(u.getId(), u.getEmail(), u.getUsername(), u.getName(), u.isSchoolVerified());
+        return new SignupRes(u.getId(), u.getEmail(), u.getUsername(), dto.nickname(), u.isSchoolVerified());
     }
 
     @Transactional
@@ -130,7 +130,7 @@ public class AuthService {
                 .expiresAt(LocalDateTime.now().plusDays(14))
                 .build());
 
-        // 👇 userId를 응답에 포함
+        //  userId를 응답에 포함
         return new TokenRes(
                 access,
                 refresh,
@@ -151,7 +151,7 @@ public class AuthService {
 
         String access = jwt.createAccessToken(rt.getUser().getId(), rt.getUser().getEmail());
 
-        // 👇 여기서도 userId 같이 내려주기
+        // 여기서도 userId 같이 내려주기
         return new TokenRes(
                 access,
                 refreshToken,
