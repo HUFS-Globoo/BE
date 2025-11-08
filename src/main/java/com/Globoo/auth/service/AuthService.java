@@ -1,3 +1,4 @@
+// src/main/java/com/Globoo/auth/service/AuthService.java
 package com.Globoo.auth.service;
 
 import com.Globoo.auth.domain.RefreshToken;
@@ -115,7 +116,8 @@ public class AuthService {
 
     @Transactional
     public TokenRes login(LoginReq req) {
-        User u = userRepo.findByEmail(req.email()).orElseThrow(() -> new IllegalArgumentException("invalid"));
+        User u = userRepo.findByEmail(req.email())
+                .orElseThrow(() -> new IllegalArgumentException("invalid"));
         if (!encoder.matches(req.password(), u.getPassword()))
             throw new IllegalArgumentException("invalid");
         if (!u.isSchoolVerified()) throw new AccessDeniedException("email not verified");
@@ -123,22 +125,46 @@ public class AuthService {
         String access = jwt.createAccessToken(u.getId(), u.getEmail());
         String refresh = UUID.randomUUID().toString();
         rtRepo.save(RefreshToken.builder()
-                .user(u).token(refresh).expiresAt(LocalDateTime.now().plusDays(14)).build());
-        return new TokenRes(access, refresh, "Bearer", jwt.getAccessTokenValiditySec());
+                .user(u)
+                .token(refresh)
+                .expiresAt(LocalDateTime.now().plusDays(14))
+                .build());
+
+        // 👇 userId를 응답에 포함
+        return new TokenRes(
+                access,
+                refresh,
+                "Bearer",
+                jwt.getAccessTokenValiditySec(),
+                u.getId()
+        );
     }
 
     @Transactional
     public TokenRes refresh(String refreshToken) {
-        RefreshToken rt = rtRepo.findByToken(refreshToken).orElseThrow(() -> new IllegalArgumentException("invalid"));
-        if (rt.isExpired() || rt.isRevoked()) throw new IllegalStateException("expired/revoked");
-        if (!rt.getUser().isSchoolVerified()) throw new AccessDeniedException("email not verified");
+        RefreshToken rt = rtRepo.findByToken(refreshToken)
+                .orElseThrow(() -> new IllegalArgumentException("invalid"));
+        if (rt.isExpired() || rt.isRevoked())
+            throw new IllegalStateException("expired/revoked");
+        if (!rt.getUser().isSchoolVerified())
+            throw new AccessDeniedException("email not verified");
+
         String access = jwt.createAccessToken(rt.getUser().getId(), rt.getUser().getEmail());
-        return new TokenRes(access, refreshToken, "Bearer", jwt.getAccessTokenValiditySec());
+
+        // 👇 여기서도 userId 같이 내려주기
+        return new TokenRes(
+                access,
+                refreshToken,
+                "Bearer",
+                jwt.getAccessTokenValiditySec(),
+                rt.getUser().getId()
+        );
     }
 
     @Transactional
     public OkRes logout(String refreshToken) {
-        rtRepo.findByToken(refreshToken).ifPresent(t -> t.setRevokedAt(LocalDateTime.now()));
+        rtRepo.findByToken(refreshToken)
+                .ifPresent(t -> t.setRevokedAt(LocalDateTime.now()));
         return new OkRes(true);
     }
 
@@ -154,7 +180,9 @@ public class AuthService {
     private static void assertNoMissing(String categoryLabel,
                                         Set<String> requested,
                                         List<Keyword> found) {
-        var foundNames = found.stream().map(Keyword::getName).collect(java.util.stream.Collectors.toSet());
+        var foundNames = found.stream()
+                .map(Keyword::getName)
+                .collect(java.util.stream.Collectors.toSet());
         var missing = new LinkedHashSet<>(requested);
         missing.removeAll(foundNames);
         if (!missing.isEmpty()) {
