@@ -41,12 +41,18 @@ public class UserMeService {
                 .toList();
 
         List<UserKeyword> uks = userKwRepo.findAllByUserId(userId);
-        List<String> personality = uks.stream().filter(k -> k.getKeyword().getCategory() == Keyword.Category.PERSONALITY)
-                .map(k -> k.getKeyword().getName()).toList();
-        List<String> hobby = uks.stream().filter(k -> k.getKeyword().getCategory() == Keyword.Category.HOBBY)
-                .map(k -> k.getKeyword().getName()).toList();
-        List<String> topic = uks.stream().filter(k -> k.getKeyword().getCategory() == Keyword.Category.TOPIC)
-                .map(k -> k.getKeyword().getName()).toList();
+        List<String> personality = uks.stream()
+                .filter(k -> k.getKeyword().getCategory() == Keyword.Category.PERSONALITY)
+                .map(k -> k.getKeyword().getName())
+                .toList();
+        List<String> hobby = uks.stream()
+                .filter(k -> k.getKeyword().getCategory() == Keyword.Category.HOBBY)
+                .map(k -> k.getKeyword().getName())
+                .toList();
+        List<String> topic = uks.stream()
+                .filter(k -> k.getKeyword().getCategory() == Keyword.Category.TOPIC)
+                .map(k -> k.getKeyword().getName())
+                .toList();
 
         return MyPageRes.builder()
                 .name(u.getName())
@@ -82,42 +88,61 @@ public class UserMeService {
     public MyLanguagesRes getMyLanguages(Long userId) {
         List<UserLanguage> uls = userLangRepo.findAllByUserId(userId);
         return MyLanguagesRes.builder()
-                .nativeCodes(uls.stream().filter(x -> x.getType()==LanguageType.NATIVE).map(x->x.getLanguage().getCode()).toList())
-                .learnCodes(uls.stream().filter(x -> x.getType()==LanguageType.LEARN).map(x->x.getLanguage().getCode()).toList())
+                .nativeCodes(uls.stream()
+                        .filter(x -> x.getType() == LanguageType.NATIVE)
+                        .map(x -> x.getLanguage().getCode())
+                        .toList())
+                .learnCodes(uls.stream()
+                        .filter(x -> x.getType() == LanguageType.LEARN)
+                        .map(x -> x.getLanguage().getCode())
+                        .toList())
                 .build();
     }
 
     @Transactional
     public void updateMyLanguages(Long userId, MyLanguagesUpdateReq req) {
+        // null 방지 + 중복 제거
         Set<String> natives = new HashSet<>(Optional.ofNullable(req.getNativeCodes()).orElseGet(List::of));
         Set<String> learns  = new HashSet<>(Optional.ofNullable(req.getLearnCodes()).orElseGet(List::of));
 
-        // 존재 검증
-        Map<String, Language> byCode = langRepo.findAllById(
-                        new ArrayList<>(Set.copyOf(natives))).stream()
+        // 둘 다 비어 있으면 전체 삭제만 하고 종료
+        if (natives.isEmpty() && learns.isEmpty()) {
+            List<UserLanguage> existing = userLangRepo.findAllByUserId(userId);
+            userLangRepo.deleteAll(existing);
+            return;
+        }
+
+        // 존재 검증 - native
+        Map<String, Language> byCode = langRepo.findAllById(new ArrayList<>(natives)).stream()
                 .collect(Collectors.toMap(Language::getCode, l -> l));
-        if (byCode.size() != natives.size())
+        if (byCode.size() != natives.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown native language code");
+        }
 
-        Map<String, Language> byCode2 = langRepo.findAllById(
-                        new ArrayList<>(Set.copyOf(learns))).stream()
+        // 존재 검증 - learn
+        Map<String, Language> byCode2 = langRepo.findAllById(new ArrayList<>(learns)).stream()
                 .collect(Collectors.toMap(Language::getCode, l -> l));
-        if (byCode2.size() != learns.size())
+        if (byCode2.size() != learns.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown learn language code");
+        }
 
-        // 전체 재저장(간단/안전)
-        userLangRepo.deleteByUserId(userId);
+        // 전체 재저장(간단/안전) - 기존 것 전부 삭제 후 다시 INSERT
+        List<UserLanguage> existing = userLangRepo.findAllByUserId(userId);
+        userLangRepo.deleteAll(existing);
+
         for (String c : natives) {
             userLangRepo.save(UserLanguage.builder()
                     .user(User.builder().id(userId).build())
                     .language(byCode.get(c))
-                    .type(LanguageType.NATIVE).build());
+                    .type(LanguageType.NATIVE)
+                    .build());
         }
         for (String c : learns) {
             userLangRepo.save(UserLanguage.builder()
                     .user(User.builder().id(userId).build())
                     .language(byCode2.get(c))
-                    .type(LanguageType.LEARN).build());
+                    .type(LanguageType.LEARN)
+                    .build());
         }
     }
 
@@ -125,9 +150,18 @@ public class UserMeService {
     public MyKeywordsRes getMyKeywords(Long userId) {
         List<UserKeyword> uks = userKwRepo.findAllByUserId(userId);
         return MyKeywordsRes.builder()
-                .personality(uks.stream().filter(k->k.getKeyword().getCategory()== Keyword.Category.PERSONALITY).map(k->k.getKeyword().getName()).toList())
-                .hobby(uks.stream().filter(k->k.getKeyword().getCategory()== Keyword.Category.HOBBY).map(k->k.getKeyword().getName()).toList())
-                .topic(uks.stream().filter(k->k.getKeyword().getCategory()== Keyword.Category.TOPIC).map(k->k.getKeyword().getName()).toList())
+                .personality(uks.stream()
+                        .filter(k -> k.getKeyword().getCategory() == Keyword.Category.PERSONALITY)
+                        .map(k -> k.getKeyword().getName())
+                        .toList())
+                .hobby(uks.stream()
+                        .filter(k -> k.getKeyword().getCategory() == Keyword.Category.HOBBY)
+                        .map(k -> k.getKeyword().getName())
+                        .toList())
+                .topic(uks.stream()
+                        .filter(k -> k.getKeyword().getCategory() == Keyword.Category.TOPIC)
+                        .map(k -> k.getKeyword().getName())
+                        .toList())
                 .build();
     }
 
@@ -138,21 +172,39 @@ public class UserMeService {
         List<String> t = Optional.ofNullable(req.getTopic()).orElseGet(List::of);
 
         List<Keyword> kp = kwRepo.findAllByCategoryAndNameIn(Keyword.Category.PERSONALITY, p);
-        if (kp.size()!=p.size())
+        if (kp.size() != p.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown PERSONALITY keywords");
+        }
 
         List<Keyword> kh = kwRepo.findAllByCategoryAndNameIn(Keyword.Category.HOBBY, h);
-        if (kh.size()!=h.size())
+        if (kh.size() != h.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown HOBBY keywords");
+        }
 
         List<Keyword> kt = kwRepo.findAllByCategoryAndNameIn(Keyword.Category.TOPIC, t);
-        if (kt.size()!=t.size())
+        if (kt.size() != t.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown TOPIC keywords");
+        }
 
         userKwRepo.deleteByUserId(userId);
-        for (Keyword k : kp) userKwRepo.save(UserKeyword.builder().user(User.builder().id(userId).build()).keyword(k).build());
-        for (Keyword k : kh) userKwRepo.save(UserKeyword.builder().user(User.builder().id(userId).build()).keyword(k).build());
-        for (Keyword k : kt) userKwRepo.save(UserKeyword.builder().user(User.builder().id(userId).build()).keyword(k).build());
+        for (Keyword k : kp) {
+            userKwRepo.save(UserKeyword.builder()
+                    .user(User.builder().id(userId).build())
+                    .keyword(k)
+                    .build());
+        }
+        for (Keyword k : kh) {
+            userKwRepo.save(UserKeyword.builder()
+                    .user(User.builder().id(userId).build())
+                    .keyword(k)
+                    .build());
+        }
+        for (Keyword k : kt) {
+            userKwRepo.save(UserKeyword.builder()
+                    .user(User.builder().id(userId).build())
+                    .keyword(k)
+                    .build());
+        }
     }
 
     @Transactional
