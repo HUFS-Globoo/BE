@@ -74,7 +74,8 @@ public class SecurityConfig {
                 "http://127.0.0.1:3000",
                 "http://localhost:5174",                            // Vite 등에서 사용하는 로컬 포트_추가 11.8
                 "http://127.0.0.1:5174",
-                "https://instant-gretta-globoo-16d715dd.koyeb.app"  // 백엔드 Koyeb URL
+                "https://instant-gretta-globoo-16d715dd.koyeb.app",  // 백엔드 Koyeb URL
+                "https://globoo-three.vercel.app"
                 // 추후 프론트가 배포되면:
                 // "https://globoo-frontend.vercel.app" 같은 실제 프론트 URL 추가
         ));
