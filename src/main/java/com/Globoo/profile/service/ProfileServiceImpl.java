@@ -62,6 +62,12 @@ public class ProfileServiceImpl implements ProfileService {
             email = mask(email);
         }
 
+        // profileImage 앞의 "/" 제거 처리
+        String profileImage = p.getProfileImage();
+        if (profileImage != null && profileImage.startsWith("/")) {
+            profileImage = profileImage.substring(1);
+        }
+
         return new ProfileDetailRes(
                 u.getId(),
                 email,
@@ -70,7 +76,7 @@ public class ProfileServiceImpl implements ProfileService {
                 p.getCampus(),
                 p.getCountry(),
                 p.getMbti(),
-                p.getProfileImage(),
+                profileImage,  // 수정된 값 사용
                 p.getInfoTitle(),
                 p.getInfoContent(),
                 p.getBirthDate() != null ? p.getBirthDate().toString() : null,
@@ -135,13 +141,19 @@ public class ProfileServiceImpl implements ProfileService {
                 .map(k -> new KeywordDto(k.getId(), k.getName()))
                 .toList();
 
+        // profileImage 앞의 "/" 제거 처리
+        String profileImage = p.getProfileImage();
+        if (profileImage != null && profileImage.startsWith("/")) {
+            profileImage = profileImage.substring(1);
+        }
+
         return new ProfileCardRes(
                 u.getId(),
                 p.getNickname(),
                 p.getCampus(),
                 p.getCountry(),
                 p.getMbti(),
-                p.getProfileImage(),
+                profileImage,  // 수정된 값 사용
                 nativeDtos,
                 learnDtos,
                 keywordDtos,
@@ -156,4 +168,3 @@ public class ProfileServiceImpl implements ProfileService {
         return email.charAt(0) + "****" + email.substring(idx);
     }
 }
-//여기 오류 되어있는거 걍 무시해도 코드 돌아가용
