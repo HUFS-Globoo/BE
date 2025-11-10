@@ -3,6 +3,7 @@ package com.Globoo.common.config;
 
 import com.Globoo.common.security.JwtAuthenticationFilter;
 import com.Globoo.common.security.JwtTokenProvider;
+import com.Globoo.user.repository.UserRepository;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -33,8 +34,10 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtAuthenticationFilter jwtAuthenticationFilter(JwtTokenProvider jwt) {
-        return new JwtAuthenticationFilter(jwt);
+    public JwtAuthenticationFilter jwtAuthenticationFilter(JwtTokenProvider jwt,
+                                                           UserRepository userRepository) {
+        // UserRepository 주입해서 필터 생성
+        return new JwtAuthenticationFilter(jwt, userRepository);
     }
 
     @Bean

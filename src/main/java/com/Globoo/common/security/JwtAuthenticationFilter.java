@@ -1,6 +1,7 @@
 // src/main/java/com/Globoo/common/security/JwtAuthenticationFilter.java
 package com.Globoo.common.security;
 
+import com.Globoo.user.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -18,9 +19,12 @@ import java.util.List;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
+    private final UserRepository userRepository;   // 추가
 
-    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider) {
+    public JwtAuthenticationFilter(JwtTokenProvider jwtTokenProvider,
+                                   UserRepository userRepository) {   // 생성자 수정
         this.jwtTokenProvider = jwtTokenProvider;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -36,6 +40,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             Long userId = jwtTokenProvider.getUserId(token);
 
             if (userId != null) {
+
+                // userId가 실제 DB에 존재하는지 확인
+                boolean exists = userRepository.existsById(userId);
+                if (!exists) {
+                    // 존재하지 않는 유저를 가리키는 토큰이면 인증 세팅하지 않고 패스
+                    // (결국 컨트롤러 단에서 401/403 발생)
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+
                 // 필요 시 ROLE_USER 외 권한 확장 가능
                 List<SimpleGrantedAuthority> authorities =
                         List.of(new SimpleGrantedAuthority("ROLE_USER"));
@@ -57,6 +71,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             jwtTokenProvider.parse(token);
             return true;
         } catch (Exception e) {
+            // 로그 찍고 싶으면 여기서 찍어도 됨
             return false;
         }
     }
