@@ -101,7 +101,7 @@ public class UserMeController {
             file.transferTo(dest.toFile());
 
             // 4) DB에 저장할 URL (정적 리소스 매핑과 맞춰야 함)
-            String url = "/uploads/profile/" + filename;
+            String url = "uploads/profile/" + filename; // 슬래쉬 중복 제거! 11.10햣
 
             svc.updateProfileImage(uid, url);
 
