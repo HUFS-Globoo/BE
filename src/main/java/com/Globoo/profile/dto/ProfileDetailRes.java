@@ -2,6 +2,7 @@ package com.Globoo.profile.dto;
 
 import com.Globoo.user.domain.Campus;
 import com.Globoo.user.domain.Gender;
+import com.fasterxml.jackson.annotation.JsonProperty;   // 추가
 
 import java.util.List;
 
@@ -13,6 +14,7 @@ public record ProfileDetailRes(
         Campus campus,
         String country,
         String mbti,
+        @JsonProperty("profileImageUrl")  // JSON 키만 profileImageUrl로 변경 for FE
         String profileImage,         // Profile.profileImage
         String infoTitle,
         String infoContent,
