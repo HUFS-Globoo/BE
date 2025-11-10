@@ -2,15 +2,16 @@ package com.Globoo.matching.web;
 
 import com.Globoo.matching.domain.MatchPair;
 import com.Globoo.matching.service.MatchingService;
-import lombok.Data;
+import com.Globoo.user.domain.User; // [!!!] 1. User 객체 import
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal; // [!!!] 2. AuthenticationPrincipal import
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID; // UUID 임포트 추가
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/matching")
@@ -21,9 +22,10 @@ public class MatchingController {
 
     /** 대기열 진입 */
     @PostMapping("/queue")
-    public ResponseEntity<?> enterQueue(@RequestBody QueueEnterReq req) {
-        // enterQueue는 매칭 결과를 반환할 수 있으므로, 그 결과를 사용하는 것이 좋습니다.
-        Map<String, Object> result = service.enterQueue(req.getUserId());
+    // @RequestBody QueueEnterReq req -> @AuthenticationPrincipal User user
+    public ResponseEntity<?> enterQueue(@AuthenticationPrincipal User user) {
+        Long myUserId = user.getId(); // 토큰에서 "내" ID를 안전하게 가져옴.
+        Map<String, Object> result = service.enterQueue(myUserId);
 
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("success", true);
@@ -33,8 +35,11 @@ public class MatchingController {
 
     /** 대기열 취소 */
     @DeleteMapping("/queue")
-    public ResponseEntity<?> leaveQueue(@RequestBody UserReq req) {
-        service.leaveQueue(req.getUserId());
+    // @RequestBody UserReq req -> @AuthenticationPrincipal User user
+    public ResponseEntity<?> leaveQueue(@AuthenticationPrincipal User user) {
+        Long myUserId = user.getId(); // 토큰에서 ID 추출
+        service.leaveQueue(myUserId);
+
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("success", true);
         resp.put("message", "Dequeued");
@@ -42,10 +47,12 @@ public class MatchingController {
     }
 
     /** 매칭 수락 */
-    // [수정] @PathVariable String matchId -> UUID matchId
     @PostMapping("/{matchId}/accept")
-    public ResponseEntity<?> accept(@PathVariable UUID matchId, @RequestBody UserReq req) {
-        Map<String, Object> data = service.accept(matchId, req.getUserId());
+    // [!!!] @RequestBody UserReq req -> @AuthenticationPrincipal User user
+    public ResponseEntity<?> accept(@PathVariable UUID matchId, @AuthenticationPrincipal User user) {
+        Long myUserId = user.getId(); // 토큰에서 ID 추출
+        Map<String, Object> data = service.accept(matchId, myUserId);
+
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("success", true);
         resp.put("data", data);
@@ -53,10 +60,12 @@ public class MatchingController {
     }
 
     /** 다음 상대 찾기(스킵) */
-    // [수정] @PathVariable String matchId -> UUID matchId
     @PostMapping("/{matchId}/next")
-    public ResponseEntity<?> next(@PathVariable UUID matchId, @RequestBody UserReq req) {
-        Map<String, Object> data = service.skipAndRequeue(matchId, req.getUserId());
+    //  @RequestBody UserReq req -> @AuthenticationPrincipal User user
+    public ResponseEntity<?> next(@PathVariable UUID matchId, @AuthenticationPrincipal User user) {
+        Long myUserId = user.getId(); // 토큰에서 ID 추출
+        Map<String, Object> data = service.skipAndRequeue(matchId, myUserId);
+
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("success", true);
         resp.put("data", data);
@@ -64,10 +73,11 @@ public class MatchingController {
     }
 
     /** 현재 진행중 매칭 조회 (헬퍼) */
-    @GetMapping("/active/{userId}")
-    public ResponseEntity<?> active(@PathVariable Long userId) {
-        // [수정] service.activeFor -> service.getActiveMatch
-        Optional<MatchPair> opt = Optional.ofNullable(service.getActiveMatch(userId));
+    @GetMapping("/active") //  URL에서 {userId} 삭제
+    //  @PathVariable Long userId -> @AuthenticationPrincipal User user
+    public ResponseEntity<?> active(@AuthenticationPrincipal User user) {
+        Long myUserId = user.getId(); // 토큰에서 ID 추출
+        Optional<MatchPair> opt = Optional.ofNullable(service.getActiveMatch(myUserId));
 
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("success", true);
@@ -86,7 +96,4 @@ public class MatchingController {
         return ResponseEntity.ok(resp);
     }
 
-    // DTOs
-    @Data public static class QueueEnterReq { private Long userId; }
-    @Data public static class UserReq { private Long userId; }
 }
