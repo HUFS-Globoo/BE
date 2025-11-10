@@ -1,4 +1,3 @@
-// src/main/java/com/Globoo/user/service/UserMeService.java
 package com.Globoo.user.service;
 
 import com.Globoo.profile.store.ProfileRepository;
@@ -54,11 +53,17 @@ public class UserMeService {
                 .map(k -> k.getKeyword().getName())
                 .toList();
 
+        // ✅ 프로필 이미지 URL 전처리 (앞 슬래시 제거)
+        String imageUrl = p.getProfileImage();
+        if (imageUrl != null && imageUrl.startsWith("/")) {
+            imageUrl = imageUrl.substring(1); // "/uploads/..." → "uploads/..."
+        }
+
         return MyPageRes.builder()
                 .name(u.getName())
                 .nickname(p.getNickname())
                 .mbti(p.getMbti())
-                .profileImageUrl(p.getProfileImage()) // null이면 프론트 기본 이미지 사용
+                .profileImageUrl(imageUrl) // 수정된 이미지 URL 적용
                 .infoTitle(p.getInfoTitle())
                 .infoContent(p.getInfoContent())
                 .campus(p.getCampus())
@@ -101,32 +106,27 @@ public class UserMeService {
 
     @Transactional
     public void updateMyLanguages(Long userId, MyLanguagesUpdateReq req) {
-        // null 방지 + 중복 제거
         Set<String> natives = new HashSet<>(Optional.ofNullable(req.getNativeCodes()).orElseGet(List::of));
-        Set<String> learns  = new HashSet<>(Optional.ofNullable(req.getLearnCodes()).orElseGet(List::of));
+        Set<String> learns = new HashSet<>(Optional.ofNullable(req.getLearnCodes()).orElseGet(List::of));
 
-        // 둘 다 비어 있으면 전체 삭제만 하고 종료
         if (natives.isEmpty() && learns.isEmpty()) {
             List<UserLanguage> existing = userLangRepo.findAllByUserId(userId);
             userLangRepo.deleteAll(existing);
             return;
         }
 
-        // 존재 검증 - native
         Map<String, Language> byCode = langRepo.findAllById(new ArrayList<>(natives)).stream()
                 .collect(Collectors.toMap(Language::getCode, l -> l));
         if (byCode.size() != natives.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown native language code");
         }
 
-        // 존재 검증 - learn
         Map<String, Language> byCode2 = langRepo.findAllById(new ArrayList<>(learns)).stream()
                 .collect(Collectors.toMap(Language::getCode, l -> l));
         if (byCode2.size() != learns.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown learn language code");
         }
 
-        // 전체 재저장(간단/안전) - 기존 것 전부 삭제 후 다시 INSERT
         List<UserLanguage> existing = userLangRepo.findAllByUserId(userId);
         userLangRepo.deleteAll(existing);
 
