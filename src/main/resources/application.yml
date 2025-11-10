@@ -4,6 +4,8 @@ server:
 spring:
   application:
     name: Globoo
+  profiles:
+    active: dev
 
   # [추가] 파일 업로드 용량 설정
   servlet:

@@ -2,10 +2,10 @@ package com.Globoo.matching.web;
 
 import com.Globoo.matching.domain.MatchPair;
 import com.Globoo.matching.service.MatchingService;
-import com.Globoo.user.domain.User; // [!!!] 1. User 객체 import
+// [!!!] User, UserRepository, UserDetails, UsernameNotFoundException 모두 필요 없어짐
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal; // [!!!] 2. AuthenticationPrincipal import
+import org.springframework.security.core.annotation.AuthenticationPrincipal; // [!!!] 이것만 남음
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -19,25 +19,29 @@ import java.util.UUID;
 public class MatchingController {
 
     private final MatchingService service;
+    // [!!!] UserRepository 주입이 더 이상 필요 없습니다.
+
+    // [!!!] UserDetails를 조회하던 private 메소드도 삭제합니다.
+    // private User getUserByDetails(UserDetails userDetails) { ... }
+
 
     /** 대기열 진입 */
     @PostMapping("/queue")
-    // @RequestBody QueueEnterReq req -> @AuthenticationPrincipal User user
-    public ResponseEntity<?> enterQueue(@AuthenticationPrincipal User user) {
-        Long myUserId = user.getId(); // 토큰에서 "내" ID를 안전하게 가져옴.
+    // [!!!] 6. @AuthenticationPrincipal UserDetails userDetails -> Long myUserId로 변경
+    public ResponseEntity<?> enterQueue(@AuthenticationPrincipal Long myUserId) {
+        // [!!!] 7. user 조회 로직이 필요 없어지고, myUserId가 바로 주입됩니다.
         Map<String, Object> result = service.enterQueue(myUserId);
 
         Map<String, Object> resp = new LinkedHashMap<>();
         resp.put("success", true);
-        resp.put("data", result); // 서비스의 반환값을 그대로 전달
+        resp.put("data", result);
         return ResponseEntity.ok(resp);
     }
 
     /** 대기열 취소 */
     @DeleteMapping("/queue")
-    // @RequestBody UserReq req -> @AuthenticationPrincipal User user
-    public ResponseEntity<?> leaveQueue(@AuthenticationPrincipal User user) {
-        Long myUserId = user.getId(); // 토큰에서 ID 추출
+    public ResponseEntity<?> leaveQueue(@AuthenticationPrincipal Long myUserId) { // [!!!] 6. 변경
+        // [!!!] 7. myUserId가 바로 주입됩니다.
         service.leaveQueue(myUserId);
 
         Map<String, Object> resp = new LinkedHashMap<>();
@@ -48,9 +52,8 @@ public class MatchingController {
 
     /** 매칭 수락 */
     @PostMapping("/{matchId}/accept")
-    // [!!!] @RequestBody UserReq req -> @AuthenticationPrincipal User user
-    public ResponseEntity<?> accept(@PathVariable UUID matchId, @AuthenticationPrincipal User user) {
-        Long myUserId = user.getId(); // 토큰에서 ID 추출
+    public ResponseEntity<?> accept(@PathVariable UUID matchId, @AuthenticationPrincipal Long myUserId) { // [!!!] 6. 변경
+        // [!!!] 7. myUserId가 바로 주입됩니다.
         Map<String, Object> data = service.accept(matchId, myUserId);
 
         Map<String, Object> resp = new LinkedHashMap<>();
@@ -61,9 +64,8 @@ public class MatchingController {
 
     /** 다음 상대 찾기(스킵) */
     @PostMapping("/{matchId}/next")
-    //  @RequestBody UserReq req -> @AuthenticationPrincipal User user
-    public ResponseEntity<?> next(@PathVariable UUID matchId, @AuthenticationPrincipal User user) {
-        Long myUserId = user.getId(); // 토큰에서 ID 추출
+    public ResponseEntity<?> next(@PathVariable UUID matchId, @AuthenticationPrincipal Long myUserId) { // [!!!] 6. 변경
+        // [!!!] 7. myUserId가 바로 주입됩니다.
         Map<String, Object> data = service.skipAndRequeue(matchId, myUserId);
 
         Map<String, Object> resp = new LinkedHashMap<>();
@@ -73,10 +75,9 @@ public class MatchingController {
     }
 
     /** 현재 진행중 매칭 조회 (헬퍼) */
-    @GetMapping("/active") //  URL에서 {userId} 삭제
-    //  @PathVariable Long userId -> @AuthenticationPrincipal User user
-    public ResponseEntity<?> active(@AuthenticationPrincipal User user) {
-        Long myUserId = user.getId(); // 토큰에서 ID 추출
+    @GetMapping("/active")
+    public ResponseEntity<?> active(@AuthenticationPrincipal Long myUserId) { // [!!!] 6. 변경
+        // [!!!] 7. myUserId가 바로 주입됩니다.
         Optional<MatchPair> opt = Optional.ofNullable(service.getActiveMatch(myUserId));
 
         Map<String, Object> resp = new LinkedHashMap<>();
