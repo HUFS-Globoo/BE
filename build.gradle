@@ -24,22 +24,22 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-websocket'
 
 	// DB 개발용
-	//runtimeOnly 'com.mysql:mysql-connector-j'
-	// DB 실제 배ㅑ포용
-	runtimeOnly 'org.postgresql:postgresql'
+	runtimeOnly 'com.mysql:mysql-connector-j'
+	// DB 실제 배포용
+	//runtimeOnly 'org.postgresql:postgresql'
 
 
 
 	// OpenAPI/Swagger
-	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:${springdocVersion}"
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.9"
 	// 다른 springdoc 모듈(webmvc-api, common 등)을 별도 추가했다면 전부 같은 버전으로 맞추세요.
-	implementation "org.springdoc:springdoc-openapi-starter-webmvc-api:${springdocVersion}"
-	implementation "org.springdoc:springdoc-openapi-starter-common:${springdocVersion}"
+	implementation "org.springdoc:springdoc-openapi-starter-webmvc-api:2.8.9"
+	implementation "org.springdoc:springdoc-openapi-starter-common:2.8.9"
 
 	// JWT
-	implementation "io.jsonwebtoken:jjwt-api:${jjwtVersion}"
-	runtimeOnly   "io.jsonwebtoken:jjwt-impl:${jjwtVersion}"
-	runtimeOnly   "io.jsonwebtoken:jjwt-jackson:${jjwtVersion}"
+	implementation "io.jsonwebtoken:jjwt-api:0.12.5"
+	runtimeOnly   "io.jsonwebtoken:jjwt-impl:0.12.5"
+	runtimeOnly   "io.jsonwebtoken:jjwt-jackson:0.12.5"
 
 	// Dev & Lombok
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'

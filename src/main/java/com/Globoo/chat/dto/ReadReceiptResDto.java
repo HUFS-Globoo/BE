@@ -9,7 +9,6 @@ public class ReadReceiptResDto extends BaseWebSocketMessageDto {
     private Long lastReadMessageId;
 
     public ReadReceiptResDto(Long readerId, Long roomId, Long lastReadMessageId) {
-        this.setType("READ_RECEIPT");
         this.readerId = readerId;
         this.roomId = roomId;
         this.lastReadMessageId = lastReadMessageId;

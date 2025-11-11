@@ -2,9 +2,11 @@ package com.Globoo.chat.dto;
 
 import com.Globoo.chat.domain.ChatMessage;
 import lombok.Getter;
+import lombok.Setter;
 import java.time.LocalDateTime;
 
 @Getter
+@Setter
 public class ChatMessageSendResDto extends BaseWebSocketMessageDto {
     private Long messageId;
     private Long senderId;
@@ -14,7 +16,6 @@ public class ChatMessageSendResDto extends BaseWebSocketMessageDto {
     private LocalDateTime sentAt;
 
     private ChatMessageSendResDto(Long messageId, Long senderId, String senderNickname, String senderProfileImageUrl, String message, LocalDateTime sentAt) {
-        this.setType("MESSAGE_ACK");
         this.messageId = messageId;
         this.senderId = senderId;
         this.senderNickname = senderNickname;

@@ -14,12 +14,14 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import com.fasterxml.jackson.databind.JsonNode;
 
 import java.security.Principal;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Objects;
 
 @Slf4j
 @Component
@@ -50,11 +52,28 @@ public class ChatHandler extends TextWebSocketHandler {
             String payload = message.getPayload();
             log.debug("수신 메시지: {}", payload);
 
+            JsonNode jsonNode = objectMapper.readTree(payload);
+            String type = jsonNode.has("type") ? jsonNode.get("type").asText() : null;
+            Long roomId = getRoomIdFromJson(jsonNode);
+
+            if (type == null || roomId == null) {
+                log.warn("type 또는 roomId/chatRoomId가 없는 메시지 수신: {}", payload);
+                return;
+            }
+
             BaseWebSocketMessageDto baseDto = objectMapper.readValue(payload, BaseWebSocketMessageDto.class);
             User currentUser = getCurrentUser(session);
             if (currentUser == null) return;
 
-            switch (baseDto.getType()) {
+            if (baseDto instanceof ChatMessageSendReqDto) {
+                ((ChatMessageSendReqDto) baseDto).setRoomId(roomId);
+            } else if (baseDto instanceof ReadMessageReqDto) {
+                ((ReadMessageReqDto) baseDto).setRoomId(roomId);
+            } else if (baseDto instanceof LeaveRoomReqDto) {
+                ((LeaveRoomReqDto) baseDto).setRoomId(roomId);
+            }
+
+            switch (type) {
                 case "MESSAGE":
                     handleChatMessage(session, (ChatMessageSendReqDto) baseDto, currentUser);
                     break;
@@ -65,12 +84,21 @@ public class ChatHandler extends TextWebSocketHandler {
                     handleLeaveMessage(session, (LeaveRoomReqDto) baseDto, currentUser);
                     break;
                 default:
-                    log.warn("알 수 없는 메시지 타입 수신: {}", baseDto.getType());
+                    log.warn("알 수 없는 메시지 타입 수신: {}", type);
             }
 
         } catch (Exception e) {
             log.error("[handleTextMessage] 메시지 처리 중 오류 발생. 세션 ID: {}", session.getId(), e);
         }
+    }
+
+    private Long getRoomIdFromJson(JsonNode jsonNode) {
+        if (jsonNode.has("roomId")) {
+            return jsonNode.get("roomId").asLong();
+        } else if (jsonNode.has("chatRoomId")) {
+            return jsonNode.get("chatRoomId").asLong();
+        }
+        return null;
     }
 
     private void handleChatMessage(WebSocketSession session, ChatMessageSendReqDto chatDto, User sender) throws Exception {
@@ -102,7 +130,6 @@ public class ChatHandler extends TextWebSocketHandler {
         Long roomId = leaveDto.getRoomId();
         log.info("[Leave] 사용자 {}가 {}번 방에서 나감", leaver.getId(), roomId);
         LeaveRoomResDto leaveNoticeDto = new LeaveRoomResDto(leaver.getId(), roomId);
-        leaveNoticeDto.setType("LEAVE_NOTICE");
         String jsonResponse = objectMapper.writeValueAsString(leaveNoticeDto);
         Set<WebSocketSession> roomSessions = chatRooms.get(roomId);
         if (roomSessions != null) {

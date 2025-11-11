@@ -85,11 +85,9 @@ public class ChatService {
                 .sender(sender)
                 .message(dto.getMessage())
                 .build();
-        chatMessageRepository.save(chatMessage);
-
-        chatRoom.updateLastMessage(chatMessage.getMessage(), chatMessage.getCreatedAt());
-
-        return ChatMessageSendResDto.from(chatMessage);
+        ChatMessage savedMessage = chatMessageRepository.save(chatMessage);
+        chatRoom.updateLastMessage(savedMessage.getMessage(), savedMessage.getCreatedAt());
+        return ChatMessageSendResDto.from(savedMessage);
     }
 
     @Transactional
