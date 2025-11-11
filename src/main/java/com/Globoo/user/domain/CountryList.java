@@ -17,7 +17,9 @@ public enum CountryList {
     DE("독일"),
     UK("영국"),
     CA("캐나다"),
-    AU("호주");
+    AU("호주"),
+    EG("이집트"),
+    IT("이탈리아"); // 이집트, 이탈리아 추가
 
     private final String name;
     CountryList(String name) { this.name = name; }
