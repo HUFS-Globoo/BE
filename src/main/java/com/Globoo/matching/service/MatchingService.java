@@ -128,16 +128,36 @@ public class MatchingService {
 
     /**
      * ✅ 유저 수락 (동시성 안전 + 방 1회 생성 + CHAT_READY 알림)
+     *
+     * - 한 유저는 동시에 하나의 active 매칭(FOUND / ACCEPTED_ONE / ACCEPTED_BOTH)에만 참여 가능
+     * - 제3자는 해당 match에 대해 accept 불가능
      */
     @Transactional
     public Map<String, Object> accept(UUID matchId, Long userId) {
-        // 동시 수락 경쟁 방지: 행 잠금
+
+        // 0️⃣ 이 유저가 이미 다른 active 매칭에 묶여 있는지 체크
+        //    (3번이 이미 FOUND/ACCEPTED_ONE 상태인데 13–15 매칭을 또 accept하는 상황 방지)
+        pairRepo.findActiveMatchByUserId(userId).ifPresent(active -> {
+            if (!active.getId().equals(matchId)) {
+                throw new IllegalStateException("이미 진행 중인 매칭이 있어 다른 매칭을 수락할 수 없습니다.");
+            }
+        });
+
+        // 1️⃣ 동시 수락 경쟁 방지: 행 잠금
         MatchPair match = pairRepo.findByIdForUpdate(matchId)
                 .orElseThrow(() -> new NoSuchElementException("match not found"));
 
+        // 2️⃣ 이 매칭의 실제 참여자인지 확인 (제3자 수락 방지)
+        if (!Objects.equals(match.getUserAId(), userId) &&
+                !Objects.equals(match.getUserBId(), userId)) {
+            throw new IllegalStateException("이 매칭의 참여자가 아닙니다.");
+        }
+
+        // 3️⃣ 수락 플래그 업데이트
         if (Objects.equals(match.getUserAId(), userId)) match.setAcceptedA(true);
         if (Objects.equals(match.getUserBId(), userId)) match.setAcceptedB(true);
 
+        // 4️⃣ 양쪽 모두 수락한 경우
         if (Boolean.TRUE.equals(match.getAcceptedA()) && Boolean.TRUE.equals(match.getAcceptedB())) {
             match.setStatus(MatchStatus.ACCEPTED_BOTH);
 
@@ -163,6 +183,7 @@ public class MatchingService {
                 socketHandler.sendToUser(match.getUserBId(), payload);
             }
         } else {
+            // 5️⃣ 한쪽만 수락한 상태
             match.setStatus(MatchStatus.ACCEPTED_ONE);
         }
 
@@ -263,4 +284,4 @@ public class MatchingService {
         socketHandler.sendToUser(userBId, payloadForB);
     }
 }
-//enterqueue 만 수정해서 중복된 경우는 못들어가게 막음. 나머지는 그대로
+// 2중 accepted 방지햇어욥!

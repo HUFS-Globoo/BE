@@ -4,6 +4,7 @@ package com.Globoo.matching.repository;
 import com.Globoo.matching.domain.MatchPair;
 import com.Globoo.matching.domain.MatchStatus;
 import org.springframework.data.jpa.repository.*;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import jakarta.persistence.LockModeType;
@@ -28,30 +29,31 @@ public interface MatchPairRepository extends JpaRepository<MatchPair, UUID> {
                 MatchStatus.ACCEPTED_BOTH
         );
 
-        return findFirstByUserAIdOrUserBIdAndStatusInOrderByMatchedAtDesc(
-                userId,
-                userId,
-                activeStatuses
-        );
+        return findLatestActiveMatchByUserId(userId, activeStatuses);
     }
 
     /**
-     * Spring Data JPA 가 쿼리를 자동 생성해주는 메서드.
-     * - userAId = ? 또는 userBId = ?
-     * - status IN ( ... )
-     * - matchedAt 내림차순 정렬 후 첫 번째 한 건만 조회
+     * (userAId = :userId OR userBId = :userId)
+     * AND status IN (:statuses)
+     * 를 명시적으로 괄호로 묶어서 조회.
      *
-     * → 내부적으로 setMaxResults(1)를 사용해서 NonUniqueResultException 이 발생하지 않는다.
+     * - matchedAt 내림차순 정렬 후 첫 번째 한 건만 조회
      */
-    Optional<MatchPair> findFirstByUserAIdOrUserBIdAndStatusInOrderByMatchedAtDesc(
-            Long userAId,
-            Long userBId,
-            Collection<MatchStatus> statuses
+    @Query("""
+        SELECT m
+        FROM MatchPair m
+        WHERE (m.userAId = :userId OR m.userBId = :userId)
+          AND m.status IN :statuses
+        ORDER BY m.matchedAt DESC
+        """)
+    Optional<MatchPair> findLatestActiveMatchByUserId(
+            @Param("userId") Long userId,
+            @Param("statuses") Collection<MatchStatus> statuses
     );
 
     /** 동시 수락 경쟁 방지용 행 잠금 */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT m FROM MatchPair m WHERE m.id = :id")
-    Optional<MatchPair> findByIdForUpdate(UUID id);
+    Optional<MatchPair> findByIdForUpdate(@Param("id") UUID id);
 }
-// 혹시나 해서 기본의 코드에서 중복되는 경우를 제외해주는 코드를 넣엇습니당
+// 이중 accepted 방지
