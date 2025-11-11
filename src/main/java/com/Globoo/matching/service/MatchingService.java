@@ -10,7 +10,6 @@ import com.Globoo.matching.domain.MatchStatus;
 import com.Globoo.matching.repository.MatchPairRepository;
 import com.Globoo.matching.repository.MatchQueueRepository;
 import com.Globoo.matching.web.MatchingSocketHandler;
-// [!!!] 2개의 import 문을 추가합니다.
 import com.Globoo.profile.dto.ProfileCardRes;
 import com.Globoo.profile.service.ProfileService;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +37,6 @@ public class MatchingService {
     private final MatchPairRepository pairRepo;
     private final MatchingSocketHandler socketHandler;
     private final ChatService chatService;
-    // [!!!] ProfileService 필드를 추가합니다.
     private final ProfileService profileService;
 
     /**
@@ -48,17 +46,24 @@ public class MatchingService {
     public Map<String, Object> enterQueue(Long userId) {
         Map<String, Object> result = new HashMap<>();
 
-        // 이미 큐에 존재하면 중복 방지
+        // 1️⃣ 이미 큐에 존재하면 중복 방지
         if (queueRepo.existsByUserIdAndActiveTrue(userId)) {
             result.put("success", true);
             result.put("status", "WAITING");
             return result;
         }
 
-        // 대기열에 추가
+        // 2️⃣ 이미 진행 중(active) 매칭이 있다면 큐 진입 금지
+        if (pairRepo.findActiveMatchByUserId(userId).isPresent()) {
+            result.put("success", true);
+            result.put("status", "ALREADY_MATCHED");
+            return result;
+        }
+
+        // 3️⃣ 대기열에 추가
         queueRepo.save(new MatchQueue(userId, true, LocalDateTime.now()));
 
-        // 다른 유저와 매칭 시도
+        // 4️⃣ 다른 유저와 매칭 시도
         var waitingUsers = queueRepo.findTop2ByActiveTrueOrderByEnqueuedAtAsc();
 
         if (waitingUsers.size() == 2) {
@@ -70,7 +75,7 @@ public class MatchingService {
             qB.setActive(false);
             queueRepo.saveAll(List.of(qA, qB));
 
-            // ✅ 유저 ID를 항상 오름차순으로 정렬해서 저장
+            // ✅ 유저 ID 오름차순 정렬
             Long user1 = qA.getUserId();
             Long user2 = qB.getUserId();
             long a = Math.min(user1, user2);
@@ -86,7 +91,7 @@ public class MatchingService {
             pairRepo.save(match);
 
             // 웹소켓 알림 (MATCH_FOUND)
-            sendFoundNotification(match); // [!!!] 수정된 메서드가 호출됩니다.
+            sendFoundNotification(match);
 
             result.put("success", true);
             result.put("status", "FOUND");
@@ -117,6 +122,7 @@ public class MatchingService {
      */
     @Transactional(readOnly = true)
     public MatchPair getActiveMatch(Long userId) {
+        // Repository 내부에서 가장 최근 active match 하나만 반환하도록 되어 있음
         return pairRepo.findActiveMatchByUserId(userId).orElse(null);
     }
 
@@ -135,17 +141,16 @@ public class MatchingService {
         if (Boolean.TRUE.equals(match.getAcceptedA()) && Boolean.TRUE.equals(match.getAcceptedB())) {
             match.setStatus(MatchStatus.ACCEPTED_BOTH);
 
-            // 이미 방이 있으면 재사용, 없으면 이제 한 번만 생성
+            // 이미 방이 있으면 재사용, 없으면 한 번만 생성
             if (match.getChatRoomId() == null) {
                 Long me = match.getUserAId();
                 Long other = match.getUserBId();
 
-                // DTO는 기본 생성자 + 세터 사용
                 ChatRoomCreateReqDto req = new ChatRoomCreateReqDto();
                 req.setParticipantUserId(other);
 
                 ChatRoomCreateResDto res = chatService.createChatRoom(req, me);
-                Long roomId = res.getRoomId(); // ChatRoom PK(Long)
+                Long roomId = res.getRoomId();
                 match.setChatRoomId(roomId);
 
                 // 양쪽에게 채팅 진입 신호
@@ -211,7 +216,6 @@ public class MatchingService {
             qB.setActive(false);
             queueRepo.saveAll(List.of(qA, qB));
 
-            // ✅ 여기서도 userId 정렬해서 저장
             Long user1 = qA.getUserId();
             Long user2 = qB.getUserId();
             long a = Math.min(user1, user2);
@@ -225,41 +229,38 @@ public class MatchingService {
             newMatch.setMatchedBy("system");
             pairRepo.save(newMatch);
 
-            sendFoundNotification(newMatch); // 수정된 메서드가 호출됩니다.
+            sendFoundNotification(newMatch);
         }
     }
 
     /**
-     * ✅ WebSocket 알림 (매칭 성사) - 수정된 버전.
+     * ✅ WebSocket 알림 (매칭 성사)
      */
     private void sendFoundNotification(MatchPair match) {
         Long userAId = match.getUserAId();
         Long userBId = match.getUserBId();
 
-        // 1. 양쪽 유저의 프로필 카드를 조회합니다.
         ProfileCardRes profileA = profileService.getProfileCard(userAId);
         ProfileCardRes profileB = profileService.getProfileCard(userBId);
 
-        // 2. UserA에게 보낼 메시지 (상대방 = profileB)
         Map<String, Object> payloadForA = Map.of(
                 "type", "MATCH_FOUND",
                 "matchId", match.getId(),
                 "myId", userAId,
-                "opponentProfile", profileB, // A에게는 B의 프로필을 전송
+                "opponentProfile", profileB,
                 "status", match.getStatus().name()
         );
 
-        // 3. UserB에게 보낼 메시지 (상대방 = profileA)
         Map<String, Object> payloadForB = Map.of(
                 "type", "MATCH_FOUND",
                 "matchId", match.getId(),
                 "myId", userBId,
-                "opponentProfile", profileA, // B에게는 A의 프로필을 전송
+                "opponentProfile", profileA,
                 "status", match.getStatus().name()
         );
 
-        // 4. 각자에게 맞는 메시지를 전송
         socketHandler.sendToUser(userAId, payloadForA);
         socketHandler.sendToUser(userBId, payloadForB);
     }
 }
+//enterqueue 만 수정해서 중복된 경우는 못들어가게 막음. 나머지는 그대로
