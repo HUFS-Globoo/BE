@@ -7,6 +7,7 @@ import java.util.Set;
 
 public class StudyPostDto {
 
+    // 생성/수정용 Request (언어/캠퍼스: 리스트)
     public static class Request {
         private String title;
         private String content;
@@ -14,9 +15,15 @@ public class StudyPostDto {
         private List<String> campuses;
         private List<String> languages;
         private Integer capacity;
-        // ... (생성자, Getter, Setter) ...
+
         public Request() {}
-        public Request(String title, String content, String status, List<String> campuses, List<String> languages, Integer capacity) {
+
+        public Request(String title,
+                       String content,
+                       String status,
+                       List<String> campuses,
+                       List<String> languages,
+                       Integer capacity) {
             this.title = title;
             this.content = content;
             this.status = status;
@@ -24,12 +31,16 @@ public class StudyPostDto {
             this.languages = languages;
             this.capacity = capacity;
         }
+
+        // getters
         public String getTitle() { return title; }
         public String getContent() { return content; }
         public String getStatus() { return status; }
         public List<String> getCampuses() { return campuses; }
         public List<String> getLanguages() { return languages; }
         public Integer getCapacity() { return capacity; }
+
+        // setters (JSON 역직렬화용)
         public void setTitle(String title) { this.title = title; }
         public void setContent(String content) { this.content = content; }
         public void setStatus(String status) { this.status = status; }
@@ -67,7 +78,6 @@ public class StudyPostDto {
             this.capacity = entity.getCapacity();
 
             // ✅ (추가) members Set의 크기를 현재 인원수로 매핑
-            // N+1 방지를 위해 Service에서 fetch join이 필요합니다.
             this.currentParticipants = entity.getMembers().size();
 
             this.createdAt = entity.getCreatedAt();
@@ -84,7 +94,7 @@ public class StudyPostDto {
             }
         }
 
-        // ... (기존 Getter) ...
+        // getters
         public Long getId() { return id; }
         public String getTitle() { return title; }
         public String getContent() { return content; }

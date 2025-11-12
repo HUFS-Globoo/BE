@@ -21,10 +21,6 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class StudyMember {
 
-    public enum Role {
-        LEADER, MEMBER
-    }
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -37,14 +33,16 @@ public class StudyMember {
     @JoinColumn(name = "study_post_id", nullable = false)
     private StudyPost studyPost;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
-    private Role role;
+    //  (삭제) Role 필드 제거
+    // public enum Role { LEADER, MEMBER }
+    // @Enumerated(EnumType.STRING)
+    // @Column(nullable = false, length = 10)
+    // private Role role;
 
     @Builder
-    public StudyMember(User user, StudyPost studyPost, Role role) {
+    public StudyMember(User user, StudyPost studyPost) { //  Role 파라미터 제거
         this.user = user;
         this.studyPost = studyPost;
-        this.role = role;
+        // this.role = role; //  Role 할당 제거
     }
 }

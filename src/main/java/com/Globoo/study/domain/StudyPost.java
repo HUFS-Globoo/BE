@@ -43,7 +43,8 @@ public class StudyPost {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // ✅ (추가) 현재 가입한 멤버 목록
+
+    //  현재 가입한 멤버 목록
     // cascade = CascadeType.REMOVE: 스터디 글이 삭제되면 멤버 정보도 함께 삭제
     @OneToMany(mappedBy = "studyPost", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
     private Set<StudyMember> members = new HashSet<>();
