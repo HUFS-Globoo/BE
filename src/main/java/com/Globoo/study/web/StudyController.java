@@ -4,13 +4,11 @@ import com.Globoo.common.web.ApiResponse;
 import com.Globoo.study.DTO.StudyPostDto;
 import com.Globoo.study.service.StudyService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-@Tag(name = "📜 Study (Post)", description = "스터디 게시글 API")
 @RestController
 @RequestMapping("/api/studies")
 public class StudyController {
@@ -32,9 +30,9 @@ public class StudyController {
             @RequestParam(required = false) List<String> language
 
     ) {
+        //  (수정) 불필요한 null, null 제거
         return ApiResponse.onSuccess(
-
-                studyService.getStudyPosts(status, campus, language, null, null)
+                studyService.getStudyPosts(status, campus, language)
         );
     }
 

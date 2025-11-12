@@ -38,16 +38,14 @@ public class StudyService {
     // 목록 조회 (필터 포함)
     // =========================
     @Transactional(readOnly = true)
+    // ✅ (수정) Controller와 파라미터 일치 (min/max Capacity 제거)
     public List<StudyPostDto.Response> getStudyPosts(
-            String status, List<String> campus, List<String> language,
-            Integer minCapacity, Integer maxCapacity // ✅ 파라미터는 받지만, 사용하지 않음
+            String status, List<String> campus, List<String> language
     ) {
         final String normStatus = normalizeStatus(status);
         final List<String> normCampuses = normalizeCampusList(campus);
         final List<String> normLangs = normalizeLanguageList(language);
 
-
-        // Specification 수정
         Specification<StudyPost> spec = (root, query, cb) -> {
             if (query.getResultType() != Long.class && query.getResultType() != long.class) {
                 root.fetch("user", JoinType.LEFT).fetch("profile", JoinType.LEFT);
@@ -61,9 +59,7 @@ public class StudyService {
             if (normCampuses != null && !normCampuses.isEmpty())  predicate = cb.and(predicate, root.join("campuses").in(normCampuses));
             if (normLangs != null && !normLangs.isEmpty())    predicate = cb.and(predicate, root.join("languages").in(normLangs));
 
-            // ✅ (삭제) capacity 필터 로직 제거
-            // if (fMinCap != null)     predicate = cb.and(predicate, cb.greaterThanOrEqualTo(root.get("capacity"), fMinCap));
-            // if (fMaxCap != null)     predicate = cb.and(predicate, cb.lessThanOrEqualTo(root.get("capacity"), fMaxCap));
+            // ✅ (삭제) capacity 필터 로직 제거됨
 
             return predicate;
         };
@@ -89,6 +85,7 @@ public class StudyService {
     public StudyPostDto.Response createStudyPost(StudyPostDto.Request req, Long currentUserId) {
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
+
         Set<String> campuses = validateAndNormalizeCampuses(req.getCampuses());
         if (campuses.isEmpty()) {
             throw new IllegalArgumentException("campus는 하나 이상 선택해야 합니다.");
@@ -109,13 +106,17 @@ public class StudyService {
         );
 
         StudyPost savedPost = studyPostRepository.save(post);
-        StudyMember leader = StudyMember.builder()
+
+        //  (수정) Role 제거
+        StudyMember creatorAsMember = StudyMember.builder()
                 .user(user)
                 .studyPost(savedPost)
-                .role(StudyMember.Role.LEADER)
+                // .role(StudyMember.Role.LEADER) // <-- 이 부분이 제거되었습니다.
                 .build();
-        studyMemberRepository.save(leader);
-        savedPost.getMembers().add(leader);
+        studyMemberRepository.save(creatorAsMember);
+
+        savedPost.getMembers().add(creatorAsMember); // 500 에러(JPA 캐시) 방지
+
         return new StudyPostDto.Response(savedPost);
     }
 
@@ -134,6 +135,7 @@ public class StudyService {
             String n = normalizeStatus(req.getStatus());
             if (n != null) post.setStatus(n);
         }
+
         if (req.getCampuses() != null) {
             Set<String> campuses = validateAndNormalizeCampuses(req.getCampuses());
             if (campuses.isEmpty()) {
@@ -141,6 +143,7 @@ public class StudyService {
             }
             post.setCampuses(campuses);
         }
+
         if (req.getLanguages() != null) {
             Set<String> languages = validateAndNormalizeLanguages(req.getLanguages());
             if (languages.isEmpty()) {
@@ -148,6 +151,7 @@ public class StudyService {
             }
             post.setLanguages(languages);
         }
+
         if (req.getCapacity() != null) {
             Integer newCapacity = validateCapacity(req.getCapacity());
             int currentParticipants = post.getMembers().size();
@@ -247,7 +251,7 @@ public class StudyService {
                 .filter(s -> !s.isEmpty())
                 .map(s -> {
                     if (!allowed.contains(s)) {
-                        throw new IllegalArgumentException("지원하지 않는 언어입니다: " + s);
+                        throw new IllegalArgumentException("지원하지 않는 언어입니다:" + s);
                     }
                     return s;
                 })

@@ -41,22 +41,18 @@ public class StudyMemberService {
         int currentParticipants = post.getMembers().size();
 
         // 3. 자동 마감 로직 (체크 1: 이미 마감되었는지?)
-        // ✅ (변경) 500 오류 방지를 위해 IllegalArgumentException으로 수정
-        if ("모집완료".equals(post.getStatus())) {
-            throw new IllegalArgumentException("이미 모집이 완료된 스터디입니다.");
+        if ("마감".equals(post.getStatus())) {
+            throw new IllegalArgumentException("이미 마감된 스터디입니다.");
         }
 
         // 4. 최대 인원수 체크 (최대 6명 제한)
-        // ✅ (변경) 500 오류 방지를 위해 IllegalArgumentException으로 수정
         if (currentParticipants >= post.getCapacity()) {
-            post.setStatus("모집완료");
+            post.setStatus("마감");
             throw new IllegalArgumentException("스터디 정원이 초과되어 마감되었습니다.");
         }
 
-        // 5. 중복 가입 체크
-        // ✅ (변경) 500 오류 방지를 위해 IllegalArgumentException으로 수정
-        boolean alreadyJoined = post.getMembers().stream()
-                .anyMatch(member -> member.getUser().getId().equals(currentUserId));
+        // 5. 중복 가입 체크 (500 에러 해결)
+        boolean alreadyJoined = studyMemberRepository.existsByStudyPostIdAndUserId(postId, currentUserId);
         if (alreadyJoined) {
             throw new IllegalArgumentException("이미 가입한 스터디입니다.");
         }
@@ -65,14 +61,13 @@ public class StudyMemberService {
         StudyMember newMember = StudyMember.builder()
                 .user(user)
                 .studyPost(post)
-                .role(StudyMember.Role.MEMBER)
+                // .role(StudyMember.Role.MEMBER)  Role 제거
                 .build();
         studyMemberRepository.save(newMember);
 
         // 7. 자동 마감 로직 (체크 2: 방금 가입한 인원으로 꽉 찼는지?)
         if (currentParticipants + 1 >= post.getCapacity()) {
-            post.setStatus("모집완료");
+            post.setStatus("마감");
         }
     }
-
 }
