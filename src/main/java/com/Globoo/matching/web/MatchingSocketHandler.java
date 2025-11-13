@@ -22,7 +22,7 @@ public class MatchingSocketHandler {
         // 클라이언트는 /user/queue/matching 구독 중이어야 함
         messagingTemplate.convertAndSendToUser(
                 String.valueOf(userId),
-              햣  "/queue/matching",
+                "/queue/matching",
                 payload
         );
     }
