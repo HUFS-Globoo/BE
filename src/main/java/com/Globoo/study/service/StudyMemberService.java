@@ -42,19 +42,19 @@ public class StudyMemberService {
 
         // 3. 자동 마감 로직 (체크 1: 이미 마감되었는지?)
         if ("마감".equals(post.getStatus())) {
-            throw new IllegalArgumentException("이미 마감된 스터디입니다.");
+            throw new IllegalArgumentException("STUDY_ALREADY_CLOSED");
         }
 
         // 4. 최대 인원수 체크 (최대 6명 제한)
         if (currentParticipants >= post.getCapacity()) {
             post.setStatus("마감");
-            throw new IllegalArgumentException("스터디 정원이 초과되어 마감되었습니다.");
+            throw new IllegalArgumentException("STUDY_CAPACITY_EXCEEDED");
         }
 
         // 5. 중복 가입 체크 (500 에러 해결)
         boolean alreadyJoined = studyMemberRepository.existsByStudyPostIdAndUserId(postId, currentUserId);
         if (alreadyJoined) {
-            throw new IllegalArgumentException("이미 가입한 스터디입니다.");
+            throw new IllegalArgumentException("STUDY_ALREADY_JOINED");
         }
 
         // 6. 가입 처리 (StudyMember 생성)

@@ -158,23 +158,32 @@ public class MatchingService {
         return data;
     }
 
+
     @Transactional
     public Map<String, Object> skipAndRequeue(UUID matchId, Long userId) {
         MatchPair match = pairRepo.findById(matchId)
                 .orElseThrow(() -> new NoSuchElementException("match not found"));
 
-        if (!Objects.equals(match.getUserAId(), userId) &&
-                !Objects.equals(match.getUserBId(), userId)) {
-            throw new IllegalStateException("이 매칭의 참여자가 아닙니다.");
-        }
+        // 1. 상대방 ID 찾기
 
+        Long otherUserId = match.getUserAId().equals(userId) ? match.getUserBId() : match.getUserAId();
+
+        // 2. 매칭 상태를 SKIPPED로 변경
         match.setStatus(MatchStatus.SKIPPED);
         pairRepo.save(match);
+
+        // 3. 현재 사용자(userId) 큐에 재진입
 
         if (!queueRepo.existsByUserIdAndActiveTrue(userId)) {
             queueRepo.save(new MatchQueue(userId, true, LocalDateTime.now()));
         }
 
+        // 💡 4. 상대방(otherUserId) 큐에 재진입 (추가된 로직)
+        if (!queueRepo.existsByUserIdAndActiveTrue(otherUserId)) {
+            queueRepo.save(new MatchQueue(otherUserId, true, LocalDateTime.now()));
+        }
+
+        // 5. 즉시 재매칭 시도
         autoRematch();
 
         Map<String, Object> data = new HashMap<>();
