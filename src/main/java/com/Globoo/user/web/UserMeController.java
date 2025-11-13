@@ -2,6 +2,10 @@
 package com.Globoo.user.web;
 
 import com.Globoo.common.security.SecurityUtils;
+import com.Globoo.study.DTO.CommentRes;
+import com.Globoo.study.DTO.StudyPostDto;
+import com.Globoo.study.service.CommentService;
+import com.Globoo.study.service.StudyService;
 import com.Globoo.user.dto.*;
 import com.Globoo.user.service.UserMeService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -18,6 +22,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -27,6 +32,9 @@ import java.util.UUID;
 public class UserMeController {
 
     private final UserMeService svc;
+    //마이페이지 - 내가 쓴 스터디 글 / 댓글 조회용 서비스 주입
+    private final StudyService studyService;
+    private final CommentService commentService;
 
     // 프로필 이미지가 저장될 실제 디렉토리 (application.yml / application-prod.yml 에서 설정)
     @Value("${globoo.upload.profile-dir:/app/uploads/profile/}")
@@ -112,5 +120,23 @@ public class UserMeController {
                     e
             );
         }
+    }
+
+    // =========================
+    //  마이페이지 - 내가 작성한 스터디 글 / 댓글
+    // =========================
+
+    @GetMapping("/study-posts")
+    @Operation(summary = "내가 작성한 스터디 글 조회")
+    public List<StudyPostDto.Response> myStudyPosts() {
+        Long uid = SecurityUtils.requiredUserId();
+        return studyService.getMyStudyPosts(uid);
+    }
+
+    @GetMapping("/comments")
+    @Operation(summary = "내가 작성한 댓글 조회")
+    public List<CommentRes> myComments() {
+        Long uid = SecurityUtils.requiredUserId();
+        return commentService.getMyComments(uid);
     }
 }

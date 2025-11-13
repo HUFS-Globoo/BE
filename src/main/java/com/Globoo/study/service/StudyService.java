@@ -70,6 +70,17 @@ public class StudyService {
     }
 
     // =========================
+    // 마이페이지 - 내가 쓴 스터디 글 목록
+    // =========================
+    @Transactional(readOnly = true)
+    public List<StudyPostDto.Response> getMyStudyPosts(Long currentUserId) {
+        return studyPostRepository.findAllByUserIdOrderByCreatedAtDesc(currentUserId)
+                .stream()
+                .map(StudyPostDto.Response::new)
+                .toList();
+    }
+
+    // =========================
     // 단일 조회
     // =========================
     @Transactional(readOnly = true)
@@ -207,6 +218,7 @@ public class StudyService {
         if (s.equals("seoul") || s.equals("서울"))   return "서울";
         return raw.trim();
     }
+
     private List<String> normalizeCampusList(List<String> rawList) {
         if (rawList == null) return null;
         return rawList.stream()
@@ -215,6 +227,7 @@ public class StudyService {
                 .distinct()
                 .toList();
     }
+
     private List<String> normalizeLanguageList(List<String> rawList) {
         if (rawList == null) return null;
         List<String> allowed = StudyPost.getAllowedLanguages();
@@ -224,6 +237,7 @@ public class StudyService {
                 .distinct()
                 .toList();
     }
+
     private Set<String> validateAndNormalizeCampuses(List<String> rawCampuses) {
         if (rawCampuses == null) {
             return new HashSet<>();
@@ -241,6 +255,7 @@ public class StudyService {
                 .filter(s -> s != null)
                 .collect(Collectors.toSet());
     }
+
     private Set<String> validateAndNormalizeLanguages(List<String> rawLangs) {
         if (rawLangs == null) {
             return new HashSet<>();
@@ -257,6 +272,7 @@ public class StudyService {
                 })
                 .collect(Collectors.toSet());
     }
+
     private Integer validateCapacity(Integer capacity) {
         if (capacity == null) {
             throw new IllegalArgumentException("capacity(최대 인원)는 필수입니다. (1~6)");
