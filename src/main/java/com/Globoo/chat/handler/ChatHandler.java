@@ -15,7 +15,6 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
-import com.fasterxml.jackson.databind.JsonNode;
 
 import java.security.Principal;
 import java.util.HashMap;
@@ -66,7 +65,9 @@ public class ChatHandler extends TextWebSocketHandler {
             User currentUser = getCurrentUser(session);
             if (currentUser == null) return;
 
-            if (baseDto instanceof ChatMessageSendReqDto) {
+            if (baseDto instanceof ChatRoomJoinReqDto) {
+                ((ChatRoomJoinReqDto) baseDto).setRoomId(roomId);
+            } else if (baseDto instanceof ChatMessageSendReqDto) {
                 ((ChatMessageSendReqDto) baseDto).setRoomId(roomId);
             } else if (baseDto instanceof ReadMessageReqDto) {
                 ((ReadMessageReqDto) baseDto).setRoomId(roomId);
@@ -75,6 +76,9 @@ public class ChatHandler extends TextWebSocketHandler {
             }
 
             switch (type) {
+                case "JOIN":
+                    handleJoinMessage(session, (ChatRoomJoinReqDto) baseDto, currentUser);
+                    break;
                 case "MESSAGE":
                     handleChatMessage(session, (ChatMessageSendReqDto) baseDto, currentUser);
                     break;
@@ -102,9 +106,20 @@ public class ChatHandler extends TextWebSocketHandler {
         return null;
     }
 
+    private void handleJoinMessage(WebSocketSession session, ChatRoomJoinReqDto joinDto, User user) {
+        Long roomId = joinDto.getRoomId();
+        enterRoomIfNeeded(session, roomId);
+        log.info("[JOIN] 사용자 {}가 {}번 방에 입장했습니다.", user.getId(), roomId);
+    }
+
     private void handleChatMessage(WebSocketSession session, ChatMessageSendReqDto chatDto, User sender) throws Exception {
         Long roomId = chatDto.getRoomId();
-        enterRoomIfNeeded(session, roomId);
+
+        if (!chatRooms.getOrDefault(roomId, Set.of()).contains(session)) {
+            log.warn("[MESSAGE] 사용자가 {}번 방에 JOIN하지 않고 메시지를 보냈습니다. (세션 ID: {})", roomId, session.getId());
+            enterRoomIfNeeded(session, roomId);
+        }
+
         ChatMessageSendResDto resDto = chatService.saveMessageAndCreateDto(chatDto, sender);
         broadcastMessage(roomId, objectMapper.writeValueAsString(resDto));
     }
@@ -113,7 +128,12 @@ public class ChatHandler extends TextWebSocketHandler {
         Long roomId = readDto.getRoomId();
         Long lastReadMessageId = readDto.getLastReadMessageId();
         log.info("[Read] 사용자 {}가 {}번 방 메시지를 {}번까지 읽음", reader.getId(), roomId, lastReadMessageId);
-        enterRoomIfNeeded(session, roomId);
+
+        if (!chatRooms.getOrDefault(roomId, Set.of()).contains(session)) {
+            log.warn("[READ] 사용자가 {}번 방에 JOIN하지 않고 읽음 처리를 보냈습니다. (세션 ID: {})", roomId, session.getId());
+            enterRoomIfNeeded(session, roomId);
+        }
+
         ReadReceiptResDto readReceiptDto = new ReadReceiptResDto(reader.getId(), roomId, lastReadMessageId);
         String jsonResponse = objectMapper.writeValueAsString(readReceiptDto);
         Set<WebSocketSession> roomSessions = chatRooms.get(roomId);
@@ -144,6 +164,9 @@ public class ChatHandler extends TextWebSocketHandler {
     }
 
     private void enterRoomIfNeeded(WebSocketSession session, Long roomId) {
+        if (roomId == null) {
+            return;
+        }
         if (!chatRooms.containsKey(roomId)) {
             chatRooms.put(roomId, new HashSet<>());
         }
@@ -204,6 +227,11 @@ public class ChatHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         log.info("[WebSocket] 연결 종료. 세션 ID: {}, 상태: {}", session.getId(), status);
+        User currentUser = getCurrentUser(session);
+        if (currentUser != null) {
+            // chatService.updateLastReadMessageId(...)
+            // matchingService.endChatSession(currentUser.getId());
+        }
         removeSessionFromRoom(session);
     }
 

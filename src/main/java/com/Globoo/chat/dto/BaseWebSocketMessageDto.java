@@ -12,6 +12,7 @@ import lombok.Getter;
         visible = false
 )
 @JsonSubTypes({
+        @JsonSubTypes.Type(value = ChatRoomJoinReqDto.class, name = "JOIN"),
         @JsonSubTypes.Type(value = ChatMessageSendReqDto.class, name = "MESSAGE"),
         @JsonSubTypes.Type(value = ReadMessageReqDto.class, name = "READ"),
         @JsonSubTypes.Type(value = LeaveRoomReqDto.class, name = "LEAVE"),

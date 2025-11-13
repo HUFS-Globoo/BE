@@ -43,9 +43,9 @@ src/main/resources/application-private.yml
 src/main/resources/application-prod-private.yml
 
 # 예시용, 환경변수 기반 설정파일은 허용
-!src/main/resources/application.yml
-!src/main/resources/application-dev.yml
-!src/main/resources/application-prod.yml
+src/main/resources/application.yml
+src/main/resources/application-dev.yml
+src/main/resources/application-prod.yml
 !src/main/resources/application-example.yml
 
 # 환경 변수 파일 (.env 계열)
