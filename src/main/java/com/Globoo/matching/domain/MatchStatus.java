@@ -5,7 +5,8 @@ public enum MatchStatus {
     FOUND,
     SKIPPED,
     ACCEPTED_ONE,
-    ACCEPTED_BOTH
+    ACCEPTED_BOTH,
+    NONE
 }
 
 // waiting 이 현재 사용되지 않는 문제
