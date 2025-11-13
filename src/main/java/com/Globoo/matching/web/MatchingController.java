@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -46,7 +45,6 @@ public class MatchingController {
     @PostMapping("/{matchId}/accept")
     public ResponseEntity<?> accept(@PathVariable UUID matchId,
                                     @AuthenticationPrincipal Long myUserId) {
-
         Map<String, Object> data = service.accept(matchId, myUserId);
 
         Map<String, Object> resp = new LinkedHashMap<>();
@@ -59,7 +57,6 @@ public class MatchingController {
     @PostMapping("/{matchId}/next")
     public ResponseEntity<?> next(@PathVariable UUID matchId,
                                   @AuthenticationPrincipal Long myUserId) {
-
         Map<String, Object> data = service.skipAndRequeue(matchId, myUserId);
 
         Map<String, Object> resp = new LinkedHashMap<>();
@@ -68,21 +65,32 @@ public class MatchingController {
         return ResponseEntity.ok(resp);
     }
 
-    /** 현재 진행중 매칭 조회 (헬퍼) */
+    /**
+     * ✅ 현재 진행중 매칭/대기 상태 조회
+     *
+     * - active 매칭이 있으면: FOUND / ACCEPTED_ONE / ACCEPTED_BOTH
+     * - active 매칭은 없지만 큐에 있으면: WAITING
+     * - 아무 것도 없으면: NONE
+     */
     @GetMapping("/active")
     public ResponseEntity<?> active(@AuthenticationPrincipal Long myUserId) {
-        Optional<MatchPair> opt = Optional.ofNullable(service.getActiveMatch(myUserId));
+        MatchPair activeMatch = service.getActiveMatch(myUserId);
 
         Map<String, Object> data = new LinkedHashMap<>();
 
-        if (opt.isPresent()) {
-            MatchPair m = opt.get();
-            data.put("matchId", m.getId());
-            data.put("status", m.getStatus().name());
-            data.put("userAId", m.getUserAId());
-            data.put("userBId", m.getUserBId());
-            data.put("chatRoomId", m.getChatRoomId());
+        if (activeMatch != null) {
+            // 현재 진행중 매칭이 있는 경우
+            data.put("matchId", activeMatch.getId());
+            data.put("status", activeMatch.getStatus().name()); // FOUND / ACCEPTED_ONE / ACCEPTED_BOTH
+            data.put("userAId", activeMatch.getUserAId());
+            data.put("userBId", activeMatch.getUserBId());
+            data.put("chatRoomId", activeMatch.getChatRoomId());
+        } else if (service.isInQueue(myUserId)) {
+            // 매칭은 아직 안 만들어졌지만 큐에는 올라가 있는 경우
+            data.put("matchId", null);
+            data.put("status", "WAITING");
         } else {
+            // 완전 아무 상태도 아닌 경우
             data.put("matchId", null);
             data.put("status", "NONE");
         }

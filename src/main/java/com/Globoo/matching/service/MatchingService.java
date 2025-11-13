@@ -292,5 +292,10 @@ public class MatchingService {
         socketHandler.sendToUser(userAId, payloadForA);
         socketHandler.sendToUser(userBId, payloadForB);
     }
+
+    @Transactional(readOnly = true)
+    public boolean isInQueue(Long userId) {
+        return queueRepo.existsByUserIdAndActiveTrue(userId);
+    }
 }
 // 2중 accepted 방지 + skip/queue 정리 완료
