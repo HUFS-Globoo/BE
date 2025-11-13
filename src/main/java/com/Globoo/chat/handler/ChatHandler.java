@@ -4,12 +4,15 @@ import com.Globoo.chat.dto.*;
 import com.Globoo.chat.service.ChatService;
 import com.Globoo.common.error.EntityNotFoundException;
 import com.Globoo.common.error.ErrorCode;
+import com.Globoo.chat.event.ChatSessionEndedEvent;
+import com.Globoo.matching.service.MatchingService;
 import com.Globoo.user.domain.User;
 import com.Globoo.user.repository.UserRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
@@ -22,6 +25,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
@@ -31,9 +35,11 @@ public class ChatHandler extends TextWebSocketHandler {
     private final ObjectMapper objectMapper;
     private final ChatService chatService;
     private final UserRepository userRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    private final Map<Long, Set<WebSocketSession>> chatRooms = new HashMap<>();
-    private final Map<WebSocketSession, Long> sessionToRoomId = new HashMap<>();
+    private final Map<Long, Set<WebSocketSession>> chatRooms = new ConcurrentHashMap<>();
+    private final Map<WebSocketSession, Long> sessionToRoomId = new ConcurrentHashMap<>();
+    private final Map<WebSocketSession, Long> sessionToUserId = new ConcurrentHashMap<>();
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -57,8 +63,14 @@ public class ChatHandler extends TextWebSocketHandler {
             Long roomId = getRoomIdFromJson(jsonNode);
 
             if (type == null || roomId == null) {
-                log.warn("type 또는 roomId/chatRoomId가 없는 메시지 수신: {}", payload);
-                return;
+                if ("JOIN".equals(type) && jsonNode.has("chatRoomId")) {
+                    roomId = jsonNode.get("chatRoomId").asLong();
+                } else if ("JOIN".equals(type) && jsonNode.has("roomId")) {
+                    roomId = jsonNode.get("roomId").asLong();
+                } else {
+                    log.warn("type 또는 roomId/chatRoomId가 없는 메시지 수신: {}", payload);
+                    return;
+                }
             }
 
             BaseWebSocketMessageDto baseDto = objectMapper.readValue(payload, BaseWebSocketMessageDto.class);
@@ -108,7 +120,7 @@ public class ChatHandler extends TextWebSocketHandler {
 
     private void handleJoinMessage(WebSocketSession session, ChatRoomJoinReqDto joinDto, User user) {
         Long roomId = joinDto.getRoomId();
-        enterRoomIfNeeded(session, roomId);
+        enterRoomIfNeeded(session, roomId, user);
         log.info("[JOIN] 사용자 {}가 {}번 방에 입장했습니다.", user.getId(), roomId);
     }
 
@@ -117,7 +129,7 @@ public class ChatHandler extends TextWebSocketHandler {
 
         if (!chatRooms.getOrDefault(roomId, Set.of()).contains(session)) {
             log.warn("[MESSAGE] 사용자가 {}번 방에 JOIN하지 않고 메시지를 보냈습니다. (세션 ID: {})", roomId, session.getId());
-            enterRoomIfNeeded(session, roomId);
+            enterRoomIfNeeded(session, roomId, sender);
         }
 
         ChatMessageSendResDto resDto = chatService.saveMessageAndCreateDto(chatDto, sender);
@@ -131,7 +143,7 @@ public class ChatHandler extends TextWebSocketHandler {
 
         if (!chatRooms.getOrDefault(roomId, Set.of()).contains(session)) {
             log.warn("[READ] 사용자가 {}번 방에 JOIN하지 않고 읽음 처리를 보냈습니다. (세션 ID: {})", roomId, session.getId());
-            enterRoomIfNeeded(session, roomId);
+            enterRoomIfNeeded(session, roomId, reader);
         }
 
         ReadReceiptResDto readReceiptDto = new ReadReceiptResDto(reader.getId(), roomId, lastReadMessageId);
@@ -160,10 +172,14 @@ public class ChatHandler extends TextWebSocketHandler {
                 }
             }
         }
-        removeSessionFromRoom(session);
+
+        Long userId = removeSessionFromRoom(session);
+        if (userId != null) {
+            eventPublisher.publishEvent(new ChatSessionEndedEvent(this, userId));
+        }
     }
 
-    private void enterRoomIfNeeded(WebSocketSession session, Long roomId) {
+    private void enterRoomIfNeeded(WebSocketSession session, Long roomId, User user) {
         if (roomId == null) {
             return;
         }
@@ -174,6 +190,7 @@ public class ChatHandler extends TextWebSocketHandler {
         if (!roomSessions.contains(session)) {
             roomSessions.add(session);
             sessionToRoomId.put(session, roomId);
+            sessionToUserId.put(session, user.getId());
             log.info("[ChatRoom] 세션 {}가 {}번 방에 입장했습니다.", session.getId(), roomId);
         }
     }
@@ -208,7 +225,7 @@ public class ChatHandler extends TextWebSocketHandler {
         if (principal == null || principal.getName() == null) {
             log.warn("세션에서 사용자 정보를 찾을 수 없습니다: {}", session.getId());
             try {
-                session.close(CloseStatus.POLICY_VIOLATION);
+                if(session.isOpen()) session.close(CloseStatus.POLICY_VIOLATION);
             } catch (Exception ignored) {}
             return null;
         }
@@ -218,7 +235,7 @@ public class ChatHandler extends TextWebSocketHandler {
         } catch (NumberFormatException e) {
             log.error("Principal name이 Long 타입이 아닙니다: {}", principal.getName());
             try {
-                session.close(CloseStatus.POLICY_VIOLATION);
+                if(session.isOpen()) session.close(CloseStatus.POLICY_VIOLATION);
             } catch (Exception ignored) {}
             return null;
         }
@@ -227,23 +244,31 @@ public class ChatHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         log.info("[WebSocket] 연결 종료. 세션 ID: {}, 상태: {}", session.getId(), status);
-        User currentUser = getCurrentUser(session);
-        if (currentUser != null) {
-            // chatService.updateLastReadMessageId(...)
-            // matchingService.endChatSession(currentUser.getId());
+
+        Long userId = removeSessionFromRoom(session);
+        if (userId != null) {
+            eventPublisher.publishEvent(new ChatSessionEndedEvent(this, userId));
         }
-        removeSessionFromRoom(session);
     }
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
         log.error("[WebSocket] 전송 오류 발생. 세션 ID: {}", session.getId(), exception);
-        removeSessionFromRoom(session);
+
+        Long userId = removeSessionFromRoom(session);
+        if (userId != null) {
+            eventPublisher.publishEvent(new ChatSessionEndedEvent(this, userId));
+        }
     }
 
     private void handleConnectionClosedByError(WebSocketSession session) {
         log.warn("[WebSocket] 오류로 인해 연결 종료 처리. 세션 ID: {}", session.getId());
-        removeSessionFromRoom(session);
+
+        Long userId = removeSessionFromRoom(session);
+        if (userId != null) {
+            eventPublisher.publishEvent(new ChatSessionEndedEvent(this, userId));
+        }
+
         try {
             if (session.isOpen()) {
                 session.close(CloseStatus.SERVER_ERROR);
@@ -251,14 +276,16 @@ public class ChatHandler extends TextWebSocketHandler {
         } catch (Exception ignored) {}
     }
 
-    private void removeSessionFromRoom(WebSocketSession session) {
-        Long roomId = sessionToRoomId.get(session);
+    private Long removeSessionFromRoom(WebSocketSession session) {
+        Long userId = sessionToUserId.remove(session);
+        Long roomId = sessionToRoomId.remove(session);
+
         if (roomId != null) {
             Set<WebSocketSession> roomSessions = chatRooms.get(roomId);
             if (roomSessions != null) {
                 boolean removed = roomSessions.remove(session);
-                if (removed) {
-                    log.info("[ChatRoom] 세션 {}가 {}번 방에서 퇴장했습니다.", session.getId(), roomId);
+                if (removed && userId != null) {
+                    log.info("[ChatRoom] 사용자 {} (세션 {})가 {}번 방에서 퇴장했습니다.", userId, session.getId(), roomId);
                 }
                 if (roomSessions.isEmpty()) {
                     chatRooms.remove(roomId);
@@ -266,6 +293,6 @@ public class ChatHandler extends TextWebSocketHandler {
                 }
             }
         }
-        sessionToRoomId.remove(session);
+        return userId;
     }
 }

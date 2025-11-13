@@ -1,0 +1,64 @@
+# 서버 포트 및 기본 설정
+server:
+  port: 8080 # 프로젝트 기본 포트
+
+# Spring Boot 기본 설정
+spring:
+  # 데이터베이스(MySQL) 설정
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # DB 생성 쿼리: CREATE DATABASE globoo ...
+    url: jdbc:mysql://localhost:3306/globoo?useSSL=false&serverTimezone=Asia/Seoul&characterEncoding=UTF-8
+    username: root # ⚠️ 여기에 본인 로컬 DB 아이디를 입력하세요
+    password: "*pearl004" # ⚠️ 여기에 본인 로컬 DB 비밀번호를 입력하세요
+
+  # JPA 및 Hibernate 설정
+  jpa:
+    hibernate:
+      # dev 환경에서는 스키마 자동 변경을 위해 'update' 사용
+      ddl-auto: update
+    properties:
+      hibernate:
+        # 콘솔에 실행되는 SQL 쿼리를 보기 쉽게 포맷팅
+        format_sql: true
+        # 주석 처리된 SQL 힌트 표시
+        use_sql_comments: true
+    # 실행되는 SQL 쿼리를 로그로 출력
+    show-sql: true
+
+  # SQL 스크립트 초기화 비활성화
+  sql:
+    init:
+      mode: never
+
+  # SMTP 이메일 인증 설정
+  mail:
+    host: smtp.gmail.com # 예: gmail
+    port: 587
+    username: danieljjs77@gmail.com    # ⚠️ 여기에 이메일 인증용 계정 아이디 입력
+    password: "rihv oyow edmw tvsh" # ⚠️ 여기에 이메일 앱 비밀번호 입력
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+# Swagger API 문서 설정
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html # Swagger UI 접속 경로
+    tags-sorter: alpha
+    operations-sorter: alpha
+  default-consumes-media-type: application/json;charset=UTF-8
+  default-produces-media-type: application/json;charset=UTF-8
+
+# JWT (JSON Web Token) 관련 설정
+jwt:
+  secret: VmVyeVNlY3JldEtleUZvckpXVENlcnRpZmljYXRpb25XaGljaElzU3VwZXJMb25nYW5kU2VjdXJlIQ== # ⚠️ 여기에 JWT 서명에 사용할 비밀 키 입력 (절대 외부에 노출 금지)
+  token-validity-in-ms: 3600000 # 토큰 유효 시간 (ms 단위, 예: 1시간)
+
+# 이메일 발신자 주소
+MAIL_FROM: danieljjs77@gmail.com

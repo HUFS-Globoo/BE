@@ -1,0 +1,28 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: none    # 운영 DB는 스키마 자동 변경 방지
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        show_sql: false
+
+  sql:
+    init:
+      mode: never
+
+server:
+  port: 8080
+  forward-headers-strategy: framework  # HTTPS 인식 문제 해결
+
+logging:
+  level:
+    org.springframework.web: INFO
+#음 재배포테스트
