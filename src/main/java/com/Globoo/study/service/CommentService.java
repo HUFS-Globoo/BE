@@ -18,6 +18,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;   // ✅ (추가) List 사용을 위한 import
+
 @Service
 @RequiredArgsConstructor
 public class CommentService {
@@ -151,6 +153,16 @@ public class CommentService {
         commentRepository.delete(comment);
     }
 
+    /** ✅ 마이페이지 - 내가 작성한 댓글 목록 */
+    @Transactional(readOnly = true)
+    public List<CommentRes> getMyComments(Long currentUserId) {
+        List<Comment> comments =
+                commentRepository.findAllByUserIdOrderByCreatedAtDesc(currentUserId);
+
+        return comments.stream()
+                .map(this::convertToResponseDto) // 기존 변환 로직 재사용
+                .toList();
+    }
 
     /** Entity -> DTO 변환 (공통) */
     private CommentRes convertToResponseDto(Comment comment) {

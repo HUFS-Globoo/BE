@@ -6,16 +6,23 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface StudyPostRepository extends JpaRepository<StudyPost, Long>, JpaSpecificationExecutor<StudyPost> {
 
-    /**
-     * ID로 게시글 조회 시, N+1 방지를 위해 user와 profile을 fetch join
-     */
     @Query("SELECT sp FROM StudyPost sp " +
             "LEFT JOIN FETCH sp.user u " +
             "LEFT JOIN FETCH u.profile p " +
+            "LEFT JOIN FETCH sp.members m " +
             "WHERE sp.id = :id")
-    Optional<StudyPost> findByIdWithUserAndProfile(@Param("id") Long id);
+    Optional<StudyPost> findByIdWithUserAndProfileAndMembers(@Param("id") Long id);
+
+    @Query("SELECT sp FROM StudyPost sp " +
+            "LEFT JOIN FETCH sp.members m " +
+            "WHERE sp.id = :id")
+    Optional<StudyPost> findByIdWithMembers(@Param("id") Long id);
+
+    // ✅ 마이페이지 - 내가 작성한 스터디 글 목록
+    List<StudyPost> findAllByUserIdOrderByCreatedAtDesc(Long userId);
 }
