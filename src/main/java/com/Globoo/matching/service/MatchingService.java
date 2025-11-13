@@ -46,17 +46,18 @@ public class MatchingService {
     public Map<String, Object> enterQueue(Long userId) {
         Map<String, Object> result = new HashMap<>();
 
-        // 1️⃣ 이미 큐에 존재하면 중복 방지
-        if (queueRepo.existsByUserIdAndActiveTrue(userId)) {
-            result.put("success", true);
-            result.put("status", "WAITING");
-            return result;
-        }
-
-        // 2️⃣ 이미 진행 중(active) 매칭이 있다면 큐 진입 금지
+        // 1️⃣ 이미 진행 중(active) 매칭이 있다면 큐 진입 금지
+        //    (FOUND / ACCEPTED_ONE / ACCEPTED_BOTH 중 가장 최근 한 건)
         if (pairRepo.findActiveMatchByUserId(userId).isPresent()) {
             result.put("success", true);
             result.put("status", "ALREADY_MATCHED");
+            return result;
+        }
+
+        // 2️⃣ 이미 큐에 존재하면 중복 방지
+        if (queueRepo.existsByUserIdAndActiveTrue(userId)) {
+            result.put("success", true);
+            result.put("status", "WAITING");
             return result;
         }
 
@@ -202,18 +203,26 @@ public class MatchingService {
      */
     @Transactional
     public Map<String, Object> skipAndRequeue(UUID matchId, Long userId) {
+        // 필요 시 동시성 제어를 위해 락을 걸어도 됨 (현재는 일반 조회)
         MatchPair match = pairRepo.findById(matchId)
                 .orElseThrow(() -> new NoSuchElementException("match not found"));
 
+        // 1️⃣ 이 매칭의 실제 참여자인지 확인 (제3자 스킵 방지)
+        if (!Objects.equals(match.getUserAId(), userId) &&
+                !Objects.equals(match.getUserBId(), userId)) {
+            throw new IllegalStateException("이 매칭의 참여자가 아닙니다.");
+        }
+
+        // 2️⃣ 상태를 SKIPPED로 변경
         match.setStatus(MatchStatus.SKIPPED);
         pairRepo.save(match);
 
-        Long userA = match.getUserAId();
-        Long userB = match.getUserBId();
+        // 3️⃣ 나만 다시 큐에 진입 (중복 방지)
+        if (!queueRepo.existsByUserIdAndActiveTrue(userId)) {
+            queueRepo.save(new MatchQueue(userId, true, LocalDateTime.now()));
+        }
 
-        queueRepo.save(new MatchQueue(userA, true, LocalDateTime.now()));
-        queueRepo.save(new MatchQueue(userB, true, LocalDateTime.now()));
-
+        // 4️⃣ 자동 재매칭 시도
         autoRematch();
 
         Map<String, Object> data = new HashMap<>();
@@ -284,4 +293,4 @@ public class MatchingService {
         socketHandler.sendToUser(userBId, payloadForB);
     }
 }
-// 2중 accepted 방지햇어욥!
+// 2중 accepted 방지 + skip/queue 정리 완료

@@ -7,3 +7,5 @@ public enum MatchStatus {
     ACCEPTED_ONE,
     ACCEPTED_BOTH
 }
+
+// waiting 이 현재 사용되지 않는 문제
