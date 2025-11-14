@@ -8,6 +8,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import jakarta.persistence.LockModeType;
+
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -55,5 +57,7 @@ public interface MatchPairRepository extends JpaRepository<MatchPair, UUID> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT m FROM MatchPair m WHERE m.id = :id")
     Optional<MatchPair> findByIdForUpdate(@Param("id") UUID id);
+
+    List<MatchPair> findByStatusAndMatchedAtBefore(MatchStatus status, LocalDateTime threshold);
 }
 // 이중 accepted 방지
