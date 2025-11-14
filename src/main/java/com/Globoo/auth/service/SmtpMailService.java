@@ -53,7 +53,7 @@ public class SmtpMailService implements MailService {
                             <p style="
                               text-align: center;
                               color: #5b6b82;
-                              font-size: 15px;
+                              font-size: 13px;
                               margin-bottom: 22px;
                             ">
                               아래 인증번호를 Globoo 서비스에 입력해달라부! \s

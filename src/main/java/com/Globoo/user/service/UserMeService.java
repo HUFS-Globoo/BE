@@ -53,7 +53,7 @@ public class UserMeService {
                 .map(k -> k.getKeyword().getName())
                 .toList();
 
-        // ✅ 프로필 이미지 URL 전처리 (앞 슬래시 제거)
+        //프로필 이미지 URL 전처리 (앞 슬래시 제거)
         String imageUrl = p.getProfileImage();
         if (imageUrl != null && imageUrl.startsWith("/")) {
             imageUrl = imageUrl.substring(1); // "/uploads/..." → "uploads/..."
@@ -106,40 +106,46 @@ public class UserMeService {
 
     @Transactional
     public void updateMyLanguages(Long userId, MyLanguagesUpdateReq req) {
+        // 요청 중복 제거 (같은 코드 여러 번 와도 한 번만 처리)
         Set<String> natives = new HashSet<>(Optional.ofNullable(req.getNativeCodes()).orElseGet(List::of));
         Set<String> learns = new HashSet<>(Optional.ofNullable(req.getLearnCodes()).orElseGet(List::of));
 
+        // 1) 둘 다 비어 있으면 → 해당 유저 언어 전체 삭제 후 종료
         if (natives.isEmpty() && learns.isEmpty()) {
-            List<UserLanguage> existing = userLangRepo.findAllByUserId(userId);
-            userLangRepo.deleteAll(existing);
+            userLangRepo.deleteAllByUserId(userId);
             return;
         }
 
+        // 2) 네이티브 언어 코드 검증
         Map<String, Language> byCode = langRepo.findAllById(new ArrayList<>(natives)).stream()
                 .collect(Collectors.toMap(Language::getCode, l -> l));
         if (byCode.size() != natives.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown native language code");
         }
 
+        // 3) 학습 언어 코드 검증
         Map<String, Language> byCode2 = langRepo.findAllById(new ArrayList<>(learns)).stream()
                 .collect(Collectors.toMap(Language::getCode, l -> l));
         if (byCode2.size() != learns.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown learn language code");
         }
 
-        List<UserLanguage> existing = userLangRepo.findAllByUserId(userId);
-        userLangRepo.deleteAll(existing);
+        // 4) 기존 데이터 싹 삭제 (bulk delete)
+        userLangRepo.deleteAllByUserId(userId);
+
+        // 5) 새로 저장
+        User userRef = User.builder().id(userId).build();
 
         for (String c : natives) {
             userLangRepo.save(UserLanguage.builder()
-                    .user(User.builder().id(userId).build())
+                    .user(userRef)
                     .language(byCode.get(c))
                     .type(LanguageType.NATIVE)
                     .build());
         }
         for (String c : learns) {
             userLangRepo.save(UserLanguage.builder()
-                    .user(User.builder().id(userId).build())
+                    .user(userRef)
                     .language(byCode2.get(c))
                     .type(LanguageType.LEARN)
                     .build());
