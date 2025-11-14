@@ -4,6 +4,11 @@ server:
 spring:
   application:
     name: Globoo
+  datasource:
+    url: jdbc:postgresql://localhost:5432/globoo
+    username: kimdonghan
+    password: #본인 비밀번호 햐
+    driver-class-name: org.postgresql.Driver
 
   # [추가] 파일 업로드 용량 설정
   servlet:

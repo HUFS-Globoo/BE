@@ -16,8 +16,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -29,9 +31,13 @@ public class MatchingService {
 
     private final MatchQueueRepository queueRepo;
     private final MatchPairRepository pairRepo;
+    private final SimpMessagingTemplate messagingTemplate;
     private final MatchingSocketHandler socketHandler;
     private final ChatService chatService;
     private final ProfileService profileService;
+
+
+
 
     @Transactional
     public Map<String, Object> enterQueue(Long userId) {
@@ -156,6 +162,50 @@ public class MatchingService {
         data.put("matchId", match.getId());
         data.put("chatRoomId", match.getChatRoomId());
         return data;
+    }
+
+
+    @Scheduled(fixedRate = 15000) // 15초마다 실행
+    @Transactional
+    public void cleanupAbandonedMatches() {
+        LocalDateTime threshold = LocalDateTime.now().minusSeconds(15);
+
+        List<MatchPair> abandonedMatches = pairRepo.findByStatusAndMatchedAtBefore(
+                MatchStatus.ACCEPTED_ONE,
+                threshold
+        );
+
+        if (abandonedMatches.isEmpty()) {
+            log.debug("정리할 고립된 ACCEPTED_ONE 매칭이 없습니다.");
+            return;
+        }
+
+        log.warn("🚨 고립된 ACCEPTED_ONE 매칭 {}건을 정리합니다.", abandonedMatches.size());
+
+        for (MatchPair match : abandonedMatches) {
+            match.setStatus(MatchStatus.NONE);
+            pairRepo.save(match);
+
+            Long userAId = match.getUserAId();
+            messagingTemplate.convertAndSendToUser(
+                    userAId.toString(),
+                    "/queue/match",
+                    Map.of(
+                            "type", "MATCH_TIMEOUT",
+                            "message", "상대방 응답 지연으로 매칭이 취소되었습니다."
+                    )
+            );
+
+            Long userBId = match.getUserBId();
+            messagingTemplate.convertAndSendToUser(
+                    userBId.toString(),
+                    "/queue/match",
+                    Map.of(
+                            "type", "MATCH_TIMEOUT",
+                            "message", "매칭이 취소되었습니다. 다시 시도해 주세요."
+                    )
+            );
+        }
     }
 
 
