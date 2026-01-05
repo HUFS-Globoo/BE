@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: Globoo
+
+  # 파일 업로드 용량 설정
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
+
+  # 공통 JPA 설정
+  jpa:
+    open-in-view: false
+    defer-datasource-initialization: true
+    properties:
+      hibernate:
+        format_sql: true
+        highlight_sql: true
+        jdbc.time_zone: Asia/Seoul
+
+logging:
+  level:
+    org.hibernate.SQL: info # 디버그 너무 많으면 로그 파일 커지니까 info로 변경 추천
+    org.hibernate.orm.jdbc.bind: trace
+    org.springframework.security: info
+    org.springframework.web: INFO
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method
+    tagsSorter: alpha
+
+# 프로필 이미지 업로드 경로 (EC2 절대 경로)
+globoo:
+  upload:
+    profile-dir: /home/ubuntu/app/uploads/profile/
+    # 주의: /app/... 은 권한 문제 생길 수 있어 /home/ubuntu/... 권장

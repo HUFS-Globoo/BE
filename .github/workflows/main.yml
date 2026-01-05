@@ -1,0 +1,58 @@
+name: Build and Deploy to EC2
+
+on:
+  push:
+    branches: [ "main" ] # 혹은 "master", 본인의 메인 브랜치 이름
+
+env:
+  AWS_REGION: ap-northeast-2
+  AWS_S3_BUCKET: globoo-deploy-bucket
+  AWS_CODE_DEPLOY_APPLICATION: GitGet-App
+  AWS_CODE_DEPLOY_GROUP: GitGet-Group
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # RDS 접속 정보가 담긴 application-prod.yml 생성
+      - name: make application-prod.yml
+        run: |
+          mkdir -p ./src/main/resources
+          cd ./src/main/resources
+          echo "${{ secrets.PROD }}" > ./application-prod.yml
+        shell: bash
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x ./gradlew
+
+      - name: Build with Gradle
+        run: ./gradlew build -x test # 테스트 건너뛰기 (빠른 배포 위해)
+
+      - name: Make zip file
+        run: zip -r ./$GITHUB_SHA.zip .
+        shell: bash
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          aws-access-key-id: ${{ secrets.CICD_ACCESS_KEY }}     # 깃허브에 등록해야 함
+          aws-secret-access-key: ${{ secrets.CICD_SECRET_KEY }} # 깃허브에 등록해야 함
+
+      - name: Upload to S3
+        run: aws s3 cp --region ap-northeast-2 ./$GITHUB_SHA.zip s3://$AWS_S3_BUCKET/$GITHUB_SHA.zip
+
+      - name: CodeDeploy
+        run: aws deploy create-deployment --application-name ${{ env.AWS_CODE_DEPLOY_APPLICATION }} --deployment-config-name CodeDeployDefault.AllAtOnce --deployment-group-name ${{ env.AWS_CODE_DEPLOY_GROUP }} --s3-location bucket=$AWS_S3_BUCKET,key=$GITHUB_SHA.zip,bundleType=zip
