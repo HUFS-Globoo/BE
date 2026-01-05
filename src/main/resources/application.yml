@@ -38,3 +38,5 @@ globoo:
   upload:
     profile-dir: /home/ubuntu/app/uploads/profile/
     # 주의: /app/... 은 권한 문제 생길 수 있어 /home/ubuntu/... 권장
+
+# 배포 테스트용 주석
