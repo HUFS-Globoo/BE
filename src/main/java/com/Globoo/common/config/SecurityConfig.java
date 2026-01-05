@@ -44,8 +44,6 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    JwtAuthenticationFilter jwtFilter) throws Exception {
         http
-                // 이 체인은 아래 경로에만 적용
-                .securityMatcher("/api/**", "/ws/**", "/v3/api-docs/**", "/swagger-ui/**")
                 .cors(Customizer.withDefaults())              // CORS 허용
                 .csrf(csrf -> csrf.disable())                 // JWT 환경에서는 CSRF 불필요
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
