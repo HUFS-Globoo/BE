@@ -49,5 +49,9 @@ dependencies {
 	// Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// plain.jar (실행 불가능한 jar) 생성을 막는 설정
+jar {
+	enabled = false
 }
