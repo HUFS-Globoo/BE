@@ -7,7 +7,7 @@ on:
 env:
   AWS_REGION: ap-northeast-2
   AWS_S3_BUCKET: globoo-deploy-bucket
-  AWS_CODE_DEPLOY_APPLICATION: GitGet-App
+  AWS_CODE_DEPLOY_APPLICATION: GitGet-Application-CD
   AWS_CODE_DEPLOY_GROUP: GitGet-Group
 
 jobs:
