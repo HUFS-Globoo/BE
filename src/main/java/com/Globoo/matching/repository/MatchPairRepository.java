@@ -1,4 +1,3 @@
-// src/main/java/com/Globoo/matching/repository/MatchPairRepository.java
 package com.Globoo.matching.repository;
 
 import com.Globoo.matching.domain.MatchPair;
@@ -6,44 +5,24 @@ import com.Globoo.matching.domain.MatchStatus;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
-
 import jakarta.persistence.LockModeType;
-
 import java.time.LocalDateTime;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Repository
 public interface MatchPairRepository extends JpaRepository<MatchPair, UUID> {
 
-    /**
-     * 유저가 참여 중인 active 매칭(FOUND / ACCEPTED_ONE / ACCEPTED_BOTH) 중에서
-     * matchedAt 기준으로 가장 최근 것 하나만 반환한다.
-     *
-     * MatchingService.getActiveMatch(...) 에서 사용하는 헬퍼 메서드.
-     */
     default Optional<MatchPair> findActiveMatchByUserId(Long userId) {
         List<MatchStatus> activeStatuses = List.of(
                 MatchStatus.FOUND,
                 MatchStatus.ACCEPTED_ONE,
                 MatchStatus.ACCEPTED_BOTH
         );
-
         return findLatestActiveMatchByUserId(userId, activeStatuses);
     }
 
-    /**
-     * (userAId = :userId OR userBId = :userId)
-     * AND status IN (:statuses)
-     * 를 명시적으로 괄호로 묶어서 조회.
-     *
-     * - matchedAt 내림차순 정렬 후 첫 번째 한 건만 조회
-     */
     @Query("""
-        SELECT m
-        FROM MatchPair m
+        SELECT m FROM MatchPair m
         WHERE (m.userAId = :userId OR m.userBId = :userId)
           AND m.status IN :statuses
         ORDER BY m.matchedAt DESC
@@ -53,11 +32,26 @@ public interface MatchPairRepository extends JpaRepository<MatchPair, UUID> {
             @Param("statuses") Collection<MatchStatus> statuses
     );
 
-    /** 동시 수락 경쟁 방지용 행 잠금 */
+    /**  최근 스킵한 유저 ID 목록 조회 (블랙리스트) */
+    @Query("""
+        SELECT CASE WHEN m.userAId = :userId THEN m.userBId ELSE m.userAId END
+        FROM MatchPair m
+        WHERE (m.userAId = :userId OR m.userBId = :userId)
+          AND m.status = com.Globoo.matching.domain.MatchStatus.SKIPPED
+          AND m.matchedAt > :threshold
+        """)
+    List<Long> findRecentlySkippedUserIds(@Param("userId") Long userId, @Param("threshold") LocalDateTime threshold);
+
+    /**  응답 없는(FOUND, ACCEPTED_ONE) 오래된 매칭 조회 */
+    @Query("""
+        SELECT m FROM MatchPair m 
+        WHERE m.status IN :statuses AND m.matchedAt < :threshold
+        """)
+    List<MatchPair> findStaleMatches(@Param("statuses") List<MatchStatus> statuses, @Param("threshold") LocalDateTime threshold);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT m FROM MatchPair m WHERE m.id = :id")
     Optional<MatchPair> findByIdForUpdate(@Param("id") UUID id);
 
     List<MatchPair> findByStatusAndMatchedAtBefore(MatchStatus status, LocalDateTime threshold);
 }
-// 이중 accepted 방지

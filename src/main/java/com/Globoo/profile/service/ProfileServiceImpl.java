@@ -48,9 +48,14 @@ public class ProfileServiceImpl implements ProfileService {
                 .map(l -> new LanguageDto(l.getLanguage().getCode(), l.getLanguage().getName()))
                 .toList();
 
+        //  KeywordDto 생성 시 category 인자 추가 및 String 변환 처리
         var keywordDtos = u.getUserKeywords().stream()
                 .map(UserKeyword::getKeyword)
-                .map(k -> new KeywordDto(k.getId(), k.getName()))
+                .map(k -> new KeywordDto(
+                        k.getId(),
+                        k.getCategory() != null ? k.getCategory().toString() : null, // Category -> String 변환
+                        k.getName()
+                ))
                 .toList();
 
         String email = u.getEmail();
@@ -87,14 +92,13 @@ public class ProfileServiceImpl implements ProfileService {
     public Page<ProfileCardRes> search(Campus campus, String nativeLang, String learnLang,
                                        List<Long> keywordIds, Pageable pageable) {
 
-        // Specification은 다른 필터 조건을 위해 남겨둠 (현재 campus만 사용)
         Specification<Profile> spec = Specification.where(ProfileSpecs.activeUser())
                 .and(ProfileSpecs.eqCampus(campus))
                 .and(ProfileSpecs.hasNativeLang(nativeLang))
                 .and(ProfileSpecs.hasLearnLang(learnLang))
                 .and(ProfileSpecs.hasAnyKeywordIds(keywordIds));
 
-        //  fetch join으로 모든 연관 데이터 한 번에 로드 (N+1 완전 차단)
+        // fetch join으로 모든 연관 데이터 한 번에 로드
         Page<Profile> page = repo.findAllWithRelations(campus, pageable);
 
         List<ProfileCardRes> content = page.getContent().stream()
@@ -112,7 +116,7 @@ public class ProfileServiceImpl implements ProfileService {
         return convertProfileToCardDto(p);
     }
 
-    /** 공통 변환 메서드 */
+    /**  공통 변환 메서드 (KeywordDto 파라미터 수정 반영) */
     private ProfileCardRes convertProfileToCardDto(Profile p) {
         User u = p.getUser();
 
@@ -127,9 +131,14 @@ public class ProfileServiceImpl implements ProfileService {
                 .map(l -> new LanguageDto(l.getLanguage().getCode(), l.getLanguage().getName()))
                 .toList();
 
+        //  KeywordDto 생성 시 3개의 인자(id, category, name)를 전달하도록 수정
         var keywordDtos = u.getUserKeywords().stream()
                 .map(UserKeyword::getKeyword)
-                .map(k -> new KeywordDto(k.getId(), k.getName()))
+                .map(k -> new KeywordDto(
+                        k.getId(),
+                        k.getCategory() != null ? k.getCategory().toString() : null,
+                        k.getName()
+                ))
                 .toList();
 
         String profileImage = p.getProfileImage();
@@ -137,6 +146,7 @@ public class ProfileServiceImpl implements ProfileService {
             profileImage = profileImage.substring(1);
         }
 
+        //  ProfileCardRes(record) 생성자에 맞춰 데이터 반환
         return new ProfileCardRes(
                 u.getId(),
                 p.getNickname(),

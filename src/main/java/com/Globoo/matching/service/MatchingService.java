@@ -3,24 +3,26 @@ package com.Globoo.matching.service;
 import com.Globoo.chat.dto.ChatRoomCreateReqDto;
 import com.Globoo.chat.dto.ChatRoomCreateResDto;
 import com.Globoo.chat.service.ChatService;
+import com.Globoo.chat.event.ChatReadyEvent;
+import com.Globoo.chat.event.MatchFoundEvent;
+import com.Globoo.chat.event.ChatSessionEndedEvent;
 import com.Globoo.matching.domain.MatchPair;
 import com.Globoo.matching.domain.MatchQueue;
 import com.Globoo.matching.domain.MatchStatus;
 import com.Globoo.matching.repository.MatchPairRepository;
 import com.Globoo.matching.repository.MatchQueueRepository;
-import com.Globoo.matching.web.MatchingSocketHandler;
 import com.Globoo.profile.dto.ProfileCardRes;
 import com.Globoo.profile.service.ProfileService;
-import com.Globoo.chat.event.ChatSessionEndedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -31,290 +33,244 @@ public class MatchingService {
 
     private final MatchQueueRepository queueRepo;
     private final MatchPairRepository pairRepo;
-    private final SimpMessagingTemplate messagingTemplate;
-    private final MatchingSocketHandler socketHandler;
     private final ChatService chatService;
     private final ProfileService profileService;
+    private final ApplicationEventPublisher eventPublisher;
 
+    //  매칭 가중치 및 설정 상수
+    private static final int LANGUAGE_MATCH_SCORE = 50;      // 학습 언어와 상대 모국어 일치 시
+    private static final int KEYWORD_MATCH_SCORE = 10;       // 관심사 키워드 1개당 점수
+    private static final int MBTI_IDEAL_SCORE = 30;          // MBTI 천생연분 궁합
+    private static final int MBTI_GOOD_SCORE = 15;           // MBTI 좋은 궁합
+    private static final int DIFFERENT_NATIONALITY_BONUS = 10; // 글로벌 매칭을 위한 국적 다름 보너스
+    private static final int SCORE_THRESHOLD = 10;           // 매칭 성사 기준 점수
+    private static final int WAIT_TIME_BONUS_PER_10SEC = 2;  // 10초 대기당 가산 점수 (Adaptive Matching)
 
+    // MBTI 궁합 맵 데이터
+    private static final Map<String, List<String>> MBTI_IDEAL_MAP = new HashMap<>();
+    private static final Map<String, List<String>> MBTI_GOOD_MAP = new HashMap<>();
 
+    static {
+        // 천생연분 데이터 세팅
+        MBTI_IDEAL_MAP.put("INFP", List.of("ENFJ", "ENTJ"));
+        MBTI_IDEAL_MAP.put("ENFP", List.of("INFJ", "INTJ"));
+        MBTI_IDEAL_MAP.put("INFJ", List.of("ENFP", "ENTP"));
+        MBTI_IDEAL_MAP.put("INTJ", List.of("ENFP", "ENTP"));
+        MBTI_IDEAL_MAP.put("ENTP", List.of("INFJ", "INTJ"));
+        MBTI_IDEAL_MAP.put("ENTJ", List.of("INFP", "INTP"));
+        MBTI_IDEAL_MAP.put("ENFJ", List.of("INFP", "ISFP"));
+        MBTI_IDEAL_MAP.put("INTP", List.of("ENTJ", "ESTJ"));
+        MBTI_IDEAL_MAP.put("ISFP", List.of("ENFJ", "ESFJ", "ESTJ"));
+        MBTI_IDEAL_MAP.put("ISTP", List.of("ESFJ", "ESTJ"));
+        MBTI_IDEAL_MAP.put("ISFJ", List.of("ESFP", "ESTP"));
+        MBTI_IDEAL_MAP.put("ISTJ", List.of("ESFP", "ESTP"));
+        MBTI_IDEAL_MAP.put("ESFP", List.of("ISFJ", "ISTJ"));
+        MBTI_IDEAL_MAP.put("ESTP", List.of("ISFJ", "ISTJ"));
+        MBTI_IDEAL_MAP.put("ESFJ", List.of("ISFP", "ISTP"));
+        MBTI_IDEAL_MAP.put("ESTJ", List.of("INTP", "ISFP", "ISTP"));
 
+        // 동일 유형은 '좋은 궁합'으로 분류
+        String[] types = {"INFP", "ENFP", "INFJ", "INTJ", "ENTP", "ENTJ", "ENFJ", "INTP", "ISFP", "ISTP", "ISFJ", "ISTJ", "ESFP", "ESTP", "ESFJ", "ESTJ"};
+        for (String type : types) MBTI_GOOD_MAP.put(type, List.of(type));
+    }
+
+    /**
+     *  대기열 진입 및 실시간 가중치 매칭 실행
+     */
     @Transactional
     public Map<String, Object> enterQueue(Long userId) {
-        Map<String, Object> result = new HashMap<>();
-
+        // 1. 현재 진행 중인 매칭이 있으면 중단
         if (pairRepo.findActiveMatchByUserId(userId).isPresent()) {
-            result.put("success", true);
-            result.put("status", "ALREADY_MATCHED");
-            return result;
+            return Map.of("success", true, "status", "ALREADY_MATCHED");
         }
 
-        if (queueRepo.existsByUserIdAndActiveTrue(userId)) {
-            result.put("success", true);
-            result.put("status", "WAITING");
-            return result;
+        // 2. 블랙리스트 확인: 1시간 이내에 내가 스킵했거나 나를 스킵한 유저는 제외
+        List<Long> skippedUserIds = pairRepo.findRecentlySkippedUserIds(userId, LocalDateTime.now().minusHours(1));
+
+        // 3. 내 프로필 정보를 바탕으로 매칭 노드 생성
+        ProfileCardRes profile = profileService.getProfileCard(userId);
+
+        List<String> keywords = new ArrayList<>();
+        if (profile.personalityKeywords() != null) keywords.addAll(profile.personalityKeywords());
+        if (profile.hobbyKeywords() != null) keywords.addAll(profile.hobbyKeywords());
+        if (profile.topicKeywords() != null) keywords.addAll(profile.topicKeywords());
+
+        MatchQueue myNode = MatchQueue.builder()
+                .userId(userId)
+                .mbti(profile.mbti()) // getMbti() -> mbti()
+                .nativeLanguageCode(profile.nativeLanguageCode()) // getNativeLanguageCode() -> nativeLanguageCode()
+                .preferredLanguageCode(profile.preferredLanguageCode())
+                .nationalityCode(profile.nationalityCode())
+                .interests(String.join(",", keywords))
+                .build();
+
+        // 4. 대기열 내 다른 유저들과 점수 비교
+        List<MatchQueue> candidates = queueRepo.findAllByActiveTrueAndUserIdNot(userId);
+        MatchQueue bestPartner = null;
+        int highestScore = -1;
+
+        for (MatchQueue candidate : candidates) {
+            // 블랙리스트 유저는 매칭 후보에서 건너뜀
+            if (skippedUserIds.contains(candidate.getUserId())) continue;
+
+            // 기본 프로필 점수 계산
+            int score = calculateMatchScore(myNode, candidate);
+
+            // 대기 시간 보너스 적용 (10초당 가산점) -> 오래 기다린 사람일수록 문턱이 낮아짐
+            int timeBonus = (int) (Duration.between(candidate.getEnqueuedAt(), LocalDateTime.now()).getSeconds() / 10) * WAIT_TIME_BONUS_PER_10SEC;
+            int effectiveScore = score + timeBonus;
+
+            // 최고 점수 파트너 갱신
+            if (effectiveScore > highestScore) {
+                highestScore = effectiveScore;
+                bestPartner = candidate;
+            }
         }
 
-        queueRepo.save(new MatchQueue(userId, true, LocalDateTime.now()));
+        // 5. 점수가 기준치를 넘으면 즉시 매칭 성사
+        if (bestPartner != null && highestScore >= SCORE_THRESHOLD) {
+            bestPartner.setActive(false); // 파트너 큐 상태 비활성화
+            queueRepo.save(bestPartner);
 
-        var waitingUsers = queueRepo.findTop2ByActiveTrueOrderByEnqueuedAtAsc();
-
-        if (waitingUsers.size() == 2) {
-            MatchQueue qA = waitingUsers.get(0);
-            MatchQueue qB = waitingUsers.get(1);
-
-            qA.setActive(false);
-            qB.setActive(false);
-            queueRepo.saveAll(List.of(qA, qB));
-
-            Long user1 = qA.getUserId();
-            Long user2 = qB.getUserId();
-            long a = Math.min(user1, user2);
-            long b = Math.max(user1, user2);
-
-            MatchPair match = new MatchPair();
-            match.setUserAId(a);
-            match.setUserBId(b);
-            match.setStatus(MatchStatus.FOUND);
-            match.setMatchedAt(LocalDateTime.now());
-            match.setMatchedBy("system");
+            MatchPair match = MatchPair.builder()
+                    .userAId(Math.min(userId, bestPartner.getUserId()))
+                    .userBId(Math.max(userId, bestPartner.getUserId()))
+                    .status(MatchStatus.FOUND)
+                    .matchedAt(LocalDateTime.now())
+                    .matchedBy("adaptive_scoring_system")
+                    .build();
             pairRepo.save(match);
 
+            // 매칭 알림 전송 (Event-Driven)
             sendFoundNotification(match);
-
-            result.put("success", true);
-            result.put("status", "FOUND");
-            result.put("matchId", match.getId());
-            result.put("userAId", match.getUserAId());
-            result.put("userBId", match.getUserBId());
-            return result;
+            return Map.of("success", true, "status", "FOUND", "matchId", match.getId());
         }
 
-        result.put("success", true);
-        result.put("status", "WAITING");
-        return result;
+        // 6. 적절한 파트너가 없으면 대기열에 본인 등록
+        if (!queueRepo.existsByUserIdAndActiveTrue(userId)) {
+            myNode.setActive(true);
+            myNode.setEnqueuedAt(LocalDateTime.now());
+            queueRepo.save(myNode);
+        }
+        return Map.of("success", true, "status", "WAITING");
     }
 
-    @Transactional
-    public void leaveQueue(Long userId) {
-        queueRepo.findByUserIdAndActiveTrue(userId).ifPresent(q -> {
-            q.setActive(false);
-            queueRepo.save(q);
-        });
+    /**
+     *  상세 점수 계산 (언어, 관심사, MBTI, 국적)
+     */
+    private int calculateMatchScore(MatchQueue my, MatchQueue other) {
+        int score = 0;
+
+        // 1. 언어 매칭: 내가 배우고 싶은 언어가 상대의 모국어일 때
+        if (Objects.equals(my.getPreferredLanguageCode(), other.getNativeLanguageCode())) score += LANGUAGE_MATCH_SCORE;
+        if (Objects.equals(other.getPreferredLanguageCode(), my.getNativeLanguageCode())) score += LANGUAGE_MATCH_SCORE;
+
+        // 2. 관심사 키워드 매칭: 겹치는 키워드 개수당 점수 가산
+        if (my.getInterests() != null && other.getInterests() != null) {
+            Set<String> mySet = new HashSet<>(Arrays.asList(my.getInterests().split(",")));
+            Set<String> otherSet = new HashSet<>(Arrays.asList(other.getInterests().split(",")));
+            mySet.retainAll(otherSet); // 교집합 산출
+            score += (mySet.size() * KEYWORD_MATCH_SCORE);
+        }
+
+        // 3. MBTI 궁합 점수 적용
+        score += getMbtiCompatibilityScore(my.getMbti(), other.getMbti());
+
+        // 4. 국적 보너스: 서로 국적이 다를 경우 글로벌 매칭 가산점
+        if (!Objects.equals(my.getNationalityCode(), other.getNationalityCode())) score += DIFFERENT_NATIONALITY_BONUS;
+
+        return score;
     }
 
-    @Transactional(readOnly = true)
-    public MatchPair getActiveMatch(Long userId) {
-        return pairRepo.findActiveMatchByUserId(userId).orElse(null);
+    /**
+     *  MBTI 궁합 점수 산출 헬퍼
+     */
+    private int getMbtiCompatibilityScore(String my, String other) {
+        if (my == null || other == null) return 0;
+        if (MBTI_IDEAL_MAP.getOrDefault(my, Collections.emptyList()).contains(other)) return MBTI_IDEAL_SCORE;
+        if (MBTI_GOOD_MAP.getOrDefault(my, Collections.emptyList()).contains(other)) return MBTI_GOOD_SCORE;
+        return 0;
     }
 
+    /**
+     *  매칭 수락 처리 및 채팅방 생성
+     */
     @Transactional
     public Map<String, Object> accept(UUID matchId, Long userId) {
-
-        pairRepo.findActiveMatchByUserId(userId).ifPresent(active -> {
-            if (!active.getId().equals(matchId)) {
-                throw new IllegalStateException("이미 진행 중인 매칭이 있어 다른 매칭을 수락할 수 없습니다.");
-            }
-        });
-
-        MatchPair match = pairRepo.findByIdForUpdate(matchId)
-                .orElseThrow(() -> new NoSuchElementException("match not found"));
-
-        if (!Objects.equals(match.getUserAId(), userId) &&
-                !Objects.equals(match.getUserBId(), userId)) {
-            throw new IllegalStateException("이 매칭의 참여자가 아닙니다.");
-        }
-
+        MatchPair match = pairRepo.findByIdForUpdate(matchId).orElseThrow();
         if (Objects.equals(match.getUserAId(), userId)) match.setAcceptedA(true);
         if (Objects.equals(match.getUserBId(), userId)) match.setAcceptedB(true);
 
+        // 둘 다 수락한 경우
         if (Boolean.TRUE.equals(match.getAcceptedA()) && Boolean.TRUE.equals(match.getAcceptedB())) {
             match.setStatus(MatchStatus.ACCEPTED_BOTH);
-
             if (match.getChatRoomId() == null) {
-                Long me = match.getUserAId();
-                Long other = match.getUserBId();
-
                 ChatRoomCreateReqDto req = new ChatRoomCreateReqDto();
-                req.setParticipantUserId(other);
+                req.setParticipantUserId(match.getUserAId().equals(userId) ? match.getUserBId() : match.getUserAId());
 
-                ChatRoomCreateResDto res = chatService.createChatRoom(req, me);
-                Long roomId = res.getRoomId();
-                match.setChatRoomId(roomId);
+                // 실제 채팅방 생성 서비스 호출
+                ChatRoomCreateResDto res = chatService.createChatRoom(req, userId);
+                match.setChatRoomId(res.getRoomId());
 
-                Map<String, Object> payload = Map.of(
-                        "type", "CHAT_READY",
-                        "matchId", match.getId(),
-                        "roomId", roomId
-                );
-                socketHandler.sendToUser(match.getUserAId(), payload);
-                socketHandler.sendToUser(match.getUserBId(), payload);
+                // 채팅방 준비 완료 이벤트 발행
+                eventPublisher.publishEvent(new ChatReadyEvent(this, match));
             }
         } else {
             match.setStatus(MatchStatus.ACCEPTED_ONE);
         }
-
         pairRepo.save(match);
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("success", true);
-        data.put("state", match.getStatus().name());
-        data.put("matchId", match.getId());
-        data.put("chatRoomId", match.getChatRoomId());
-        return data;
+        return Map.of("success", true, "state", match.getStatus().name(), "matchId", match.getId(), "chatRoomId", Objects.toString(match.getChatRoomId(), ""));
     }
 
-
-    @Scheduled(fixedRate = 15000) // 15초마다 실행
+    /**
+     *  응답 없는 매칭 클린업 (10초마다 실행)
+     * FOUND 상태에서 아무도 수락하지 않거나, 한 명만 수락하고 잠수 타는 경우 방지
+     */
+    @Scheduled(fixedRate = 10000)
     @Transactional
     public void cleanupAbandonedMatches() {
-        LocalDateTime threshold = LocalDateTime.now().minusSeconds(15);
+        LocalDateTime threshold = LocalDateTime.now().minusSeconds(20); // 20초간 무응답 시
+        List<MatchStatus> staleStatuses = List.of(MatchStatus.FOUND, MatchStatus.ACCEPTED_ONE);
 
-        List<MatchPair> abandonedMatches = pairRepo.findByStatusAndMatchedAtBefore(
-                MatchStatus.ACCEPTED_ONE,
-                threshold
-        );
-
-        if (abandonedMatches.isEmpty()) {
-            log.debug("정리할 고립된 ACCEPTED_ONE 매칭이 없습니다.");
-            return;
-        }
-
-        log.warn("🚨 고립된 ACCEPTED_ONE 매칭 {}건을 정리합니다.", abandonedMatches.size());
-
-        for (MatchPair match : abandonedMatches) {
-            match.setStatus(MatchStatus.NONE);
-            pairRepo.save(match);
-
-            Long userAId = match.getUserAId();
-            messagingTemplate.convertAndSendToUser(
-                    userAId.toString(),
-                    "/queue/match",
-                    Map.of(
-                            "type", "MATCH_TIMEOUT",
-                            "message", "상대방 응답 지연으로 매칭이 취소되었습니다."
-                    )
-            );
-
-            Long userBId = match.getUserBId();
-            messagingTemplate.convertAndSendToUser(
-                    userBId.toString(),
-                    "/queue/match",
-                    Map.of(
-                            "type", "MATCH_TIMEOUT",
-                            "message", "매칭이 취소되었습니다. 다시 시도해 주세요."
-                    )
-            );
-        }
-    }
-
-
-    @Transactional
-    public Map<String, Object> skipAndRequeue(UUID matchId, Long userId) {
-        MatchPair match = pairRepo.findById(matchId)
-                .orElseThrow(() -> new NoSuchElementException("match not found"));
-
-        // 1. 상대방 ID 찾기
-
-        Long otherUserId = match.getUserAId().equals(userId) ? match.getUserBId() : match.getUserAId();
-
-        // 2. 매칭 상태를 SKIPPED로 변경
-        match.setStatus(MatchStatus.SKIPPED);
-        pairRepo.save(match);
-
-        // 3. 현재 사용자(userId) 큐에 재진입
-
-        if (!queueRepo.existsByUserIdAndActiveTrue(userId)) {
-            queueRepo.save(new MatchQueue(userId, true, LocalDateTime.now()));
-        }
-
-        // 💡 4. 상대방(otherUserId) 큐에 재진입 (추가된 로직)
-        if (!queueRepo.existsByUserIdAndActiveTrue(otherUserId)) {
-            queueRepo.save(new MatchQueue(otherUserId, true, LocalDateTime.now()));
-        }
-
-        // 5. 즉시 재매칭 시도
-        autoRematch();
-
-        Map<String, Object> data = new HashMap<>();
-        data.put("success", true);
-        data.put("state", "SKIPPED_AND_REQUEUED");
-        return data;
-    }
-
-    @Transactional
-    public void autoRematch() {
-        var waitingUsers = queueRepo.findTop2ByActiveTrueOrderByEnqueuedAtAsc();
-
-        if (waitingUsers.size() == 2) {
-            MatchQueue qA = waitingUsers.get(0);
-            MatchQueue qB = waitingUsers.get(1);
-
-            qA.setActive(false);
-            qB.setActive(false);
-            queueRepo.saveAll(List.of(qA, qB));
-
-            Long user1 = qA.getUserId();
-            Long user2 = qB.getUserId();
-            long a = Math.min(user1, user2);
-            long b = Math.max(user1, user2);
-
-            MatchPair newMatch = new MatchPair();
-            newMatch.setUserAId(a);
-            newMatch.setUserBId(b);
-            newMatch.setStatus(MatchStatus.FOUND);
-            newMatch.setMatchedAt(LocalDateTime.now());
-            newMatch.setMatchedBy("system");
-            pairRepo.save(newMatch);
-
-            sendFoundNotification(newMatch);
-        }
-    }
-
-    @Async
-    @EventListener
-    public void onChatSessionEnded(ChatSessionEndedEvent event) {
-        log.info("[Event] ChatSessionEndedEvent 수신. userId: {}", event.getUserId());
-        endChatSession(event.getUserId());
-    }
-
-    @Transactional
-    public void endChatSession(Long userId) {
-        pairRepo.findActiveMatchByUserId(userId).ifPresent(match -> {
-            match.setStatus(MatchStatus.NONE);
-            pairRepo.save(match);
+        pairRepo.findStaleMatches(staleStatuses, threshold).forEach(m -> {
+            m.setStatus(MatchStatus.NONE); // 매칭 무효화
+            pairRepo.save(m);
+            log.info("[Cleanup] 응답 시간 초과로 매칭 정리: {}", m.getId());
         });
     }
 
-    private void sendFoundNotification(MatchPair match) {
-        Long userAId = match.getUserAId();
-        Long userBId = match.getUserBId();
-
-        ProfileCardRes profileA = profileService.getProfileCard(userAId);
-        ProfileCardRes profileB = profileService.getProfileCard(userBId);
-
-        Map<String, Object> payloadForA = Map.of(
-                "type", "MATCH_FOUND",
-                "matchId", match.getId(),
-                "myId", userAId,
-                "opponentProfile", profileB,
-                "status", match.getStatus().name()
-        );
-
-        Map<String, Object> payloadForB = Map.of(
-                "type", "MATCH_FOUND",
-                "matchId", match.getId(),
-                "myId", userBId,
-                "opponentProfile", profileA,
-                "status", match.getStatus().name()
-        );
-
-        socketHandler.sendToUser(userAId, payloadForA);
-        socketHandler.sendToUser(userBId, payloadForB);
+    /**
+     *  채팅 세션 종료 시 매칭 상태를 NONE으로 리셋
+     */
+    @Async @EventListener
+    public void onChatSessionEnded(ChatSessionEndedEvent event) {
+        pairRepo.findActiveMatchByUserId(event.getUserId()).ifPresent(m -> {
+            m.setStatus(MatchStatus.NONE);
+            pairRepo.save(m);
+        });
     }
 
-    @Transactional(readOnly = true)
-    public boolean isInQueue(Long userId) {
-        return queueRepo.existsByUserIdAndActiveTrue(userId);
+    /**
+     *  매칭 발견 알림 이벤트 발행
+     */
+    private void sendFoundNotification(MatchPair match) {
+        ProfileCardRes profileA = profileService.getProfileCard(match.getUserAId());
+        ProfileCardRes profileB = profileService.getProfileCard(match.getUserBId());
+        eventPublisher.publishEvent(new MatchFoundEvent(this, match, profileA, profileB));
+    }
+
+    // --- 기타 헬퍼 메서드 ---
+    @Transactional public void leaveQueue(Long userId) { queueRepo.findByUserIdAndActiveTrue(userId).ifPresent(q -> { q.setActive(false); queueRepo.save(q); }); }
+    @Transactional(readOnly = true) public MatchPair getActiveMatch(Long userId) { return pairRepo.findActiveMatchByUserId(userId).orElse(null); }
+    @Transactional(readOnly = true) public boolean isInQueue(Long userId) { return queueRepo.existsByUserIdAndActiveTrue(userId); }
+
+    /**
+     *  다음 상대 찾기 (현재 매칭 스킵 후 다시 큐에 진입)
+     */
+    @Transactional public Map<String, Object> skipAndRequeue(UUID matchId, Long userId) {
+        MatchPair m = pairRepo.findById(matchId).orElseThrow();
+        m.setStatus(MatchStatus.SKIPPED);
+        pairRepo.save(m);
+        return enterQueue(userId); // 다시 대기열 로직 수행
     }
 }
