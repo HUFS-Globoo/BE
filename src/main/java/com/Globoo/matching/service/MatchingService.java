@@ -43,7 +43,7 @@ public class MatchingService {
     private static final int MBTI_IDEAL_SCORE = 30;          // MBTI 천생연분 궁합
     private static final int MBTI_GOOD_SCORE = 15;           // MBTI 좋은 궁합
     private static final int DIFFERENT_NATIONALITY_BONUS = 10; // 글로벌 매칭을 위한 국적 다름 보너스
-    private static final int SCORE_THRESHOLD = 10;           // 매칭 성사 기준 점수
+    private static final int SCORE_THRESHOLD = 70;           // 매칭 성사 기준 점수
     private static final int WAIT_TIME_BONUS_PER_10SEC = 2;  // 10초 대기당 가산 점수 (Adaptive Matching)
 
     // MBTI 궁합 맵 데이터
