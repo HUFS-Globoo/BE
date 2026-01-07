@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 @Slf4j
 @Service
@@ -36,6 +37,7 @@ public class MatchingService {
     private final ChatService chatService;
     private final ProfileService profileService;
     private final ApplicationEventPublisher eventPublisher;
+    private final Queue<MatchQueue> queue = new ConcurrentLinkedQueue<>();
 
     //  매칭 가중치 및 설정 상수
     private static final int LANGUAGE_MATCH_SCORE = 50;      // 학습 언어와 상대 모국어 일치 시
@@ -44,7 +46,7 @@ public class MatchingService {
     private static final int MBTI_GOOD_SCORE = 15;           // MBTI 좋은 궁합
     private static final int DIFFERENT_NATIONALITY_BONUS = 10; // 글로벌 매칭을 위한 국적 다름 보너스
     private static final int SCORE_THRESHOLD = 70;           // 매칭 성사 기준 점수
-    private static final int WAIT_TIME_BONUS_PER_10SEC = 2;  // 10초 대기당 가산 점수 (Adaptive Matching)
+    private static final int WAIT_TIME_BONUS_PER_10SEC = 5;  // 10초 대기당 가산 점수 (Adaptive Matching)
 
     // MBTI 궁합 맵 데이터
     private static final Map<String, List<String>> MBTI_IDEAL_MAP = new HashMap<>();
@@ -97,11 +99,13 @@ public class MatchingService {
 
         MatchQueue myNode = MatchQueue.builder()
                 .userId(userId)
-                .mbti(profile.mbti()) // getMbti() -> mbti()
-                .nativeLanguageCode(profile.nativeLanguageCode()) // getNativeLanguageCode() -> nativeLanguageCode()
+                .active(true)
+                .enqueuedAt(LocalDateTime.now())
+                .mbti(profile.mbti())
+                .nativeLanguageCode(profile.nativeLanguageCode())
                 .preferredLanguageCode(profile.preferredLanguageCode())
                 .nationalityCode(profile.nationalityCode())
-                .interests(String.join(",", keywords))
+                .interests(String.join(",", profile.getInterests()))
                 .build();
 
         // 4. 대기열 내 다른 유저들과 점수 비교
@@ -223,19 +227,59 @@ public class MatchingService {
     }
 
     /**
-     *  응답 없는 매칭 클린업 (10초마다 실행)
-     * FOUND 상태에서 아무도 수락하지 않거나, 한 명만 수락하고 잠수 타는 경우 방지
+     * ✅ 응답 없는 매칭 클린업 및 수락자 자동 재매칭
+     * 한 명만 수락하고 20초가 지난 경우, 수락했던 유저만 대기열에 다시 넣습니다.
      */
     @Scheduled(fixedRate = 10000)
     @Transactional
     public void cleanupAbandonedMatches() {
-        LocalDateTime threshold = LocalDateTime.now().minusSeconds(20); // 20초간 무응답 시
+        LocalDateTime threshold = LocalDateTime.now().minusSeconds(20);
         List<MatchStatus> staleStatuses = List.of(MatchStatus.FOUND, MatchStatus.ACCEPTED_ONE);
 
         pairRepo.findStaleMatches(staleStatuses, threshold).forEach(m -> {
-            m.setStatus(MatchStatus.NONE); // 매칭 무효화
-            pairRepo.save(m);
-            log.info("[Cleanup] 응답 시간 초과로 매칭 정리: {}", m.getId());
+            log.info("[Cleanup] 매칭 {} 파기 - 응답 시간 초과", m.getId());
+
+            // 1. 유저 A가 수락했었다면 다시 대기열에 진입시킵니다.
+            if (m.getAcceptedA() != null && m.getAcceptedA()) {
+                log.info("[Cleanup] 유저 A({})님은 수락하셨으므로 재매칭을 시도합니다.", m.getUserAId());
+                enterQueue(m.getUserAId());
+            }
+
+            // 2. 유저 B가 수락했었다면 다시 대기열에 진입시킵니다.
+            if (m.getAcceptedB() != null && m.getAcceptedB()) {
+                log.info("[Cleanup] 유저 B({})님은 수락하셨으므로 재매칭을 시도합니다.", m.getUserBId());
+                enterQueue(m.getUserBId());
+            }
+
+            // 3. 잠수 탄 유저는 로직을 타지 않아 자연스럽게 대기열에서 제외됩니다.
+
+            // 4. 파기된 매칭 데이터는 삭제하여 테이블을 정리합니다.
+            pairRepo.delete(m);
+        });
+    }
+
+    /**
+     * ✅ 대기열(Queue) 클린업 로직 (3분 타임아웃)
+     * 1분마다 실행하여, 대기열에 들어온 지 3분이 넘은 유저를 강제 퇴장시킵니다.
+     */
+    @Scheduled(fixedRate = 60000) // 1분마다 체크
+    @Transactional
+    public void cleanupOldQueueNodes() {
+        // 3분 전 시간을 계산합니다. (LocalDateTime 기반)
+        LocalDateTime timeoutThreshold = LocalDateTime.now().minusMinutes(3);
+
+        // 대기열(queue) 리스트에서 조건에 맞는 노드 삭제
+        queue.removeIf(node -> {
+            //  getEnteredAt() 대신 엔티티 필드인 getEnqueuedAt()을 사용합니다.
+            //  현재 시간보다 3분 이전인지 비교합니다.
+            boolean isExpired = node.getEnqueuedAt().isBefore(timeoutThreshold);
+
+            if (isExpired) {
+                log.info("[Queue-Timeout] 유저 {} 님의 대기 시간이 3분을 초과하여 대기열에서 삭제합니다. (진입시간: {})",
+                        node.getUserId(), node.getEnqueuedAt());
+                // TODO: 필요한 경우 프론트엔드에 "매칭 실패(Timeout)" 웹소켓 메시지 전송 로직 추가
+            }
+            return isExpired;
         });
     }
 
