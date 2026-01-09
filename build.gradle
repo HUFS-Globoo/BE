@@ -25,7 +25,7 @@ dependencies {
 
 	// DB 개발용
 	//runtimeOnly 'com.mysql:mysql-connector-j'
-	// DB 실제 배ㅑ포용
+	// DB 실제 배포용
 	runtimeOnly 'org.postgresql:postgresql'
 
 

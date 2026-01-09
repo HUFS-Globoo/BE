@@ -1,3 +1,3 @@
 package com.Globoo.profile.dto;
 
-public record KeywordDto(Long id, String name) {}
+public record KeywordDto(Long id, String category, String name) {}
