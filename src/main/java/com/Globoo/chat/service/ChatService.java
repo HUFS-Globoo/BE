@@ -6,7 +6,7 @@ import com.Globoo.chat.domain.*;
 import com.Globoo.chat.dto.*;
 import com.Globoo.chat.repository.*;
 import com.Globoo.common.error.ErrorCode;
-import com.Globoo.common.error.AuthorizationException;
+import com.Globoo.common.error.AuthException;
 import com.Globoo.common.error.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -113,7 +113,7 @@ public class ChatService {
 
     private void checkParticipant(ChatRoom chatRoom, User user) {
         chatParticipantRepository.findByChatRoomAndUser(chatRoom, user)
-                .orElseThrow(() -> new AuthorizationException(ErrorCode.FORBIDDEN_ACCESS));
+                .orElseThrow(() -> new AuthException(ErrorCode.FORBIDDEN_ACCESS));
     }
 
     private User findOtherParticipant(ChatRoom chatRoom, User currentUser) {

@@ -1,9 +1,18 @@
 package com.Globoo.auth.service;
 
 import com.Globoo.auth.domain.EmailVerificationToken;
+import com.Globoo.auth.dto.PendingSignupPayload;
+import com.Globoo.auth.dto.SignupReq;
 import com.Globoo.auth.repository.EmailVerificationTokenRepository;
+import com.Globoo.common.error.AuthException;
+import com.Globoo.common.error.ErrorCode;
+import com.Globoo.profile.store.ProfileRepository;
+import com.Globoo.user.domain.Profile;
 import com.Globoo.user.domain.User;
+import com.Globoo.user.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,59 +26,146 @@ public class EmailVerificationService {
     private final EmailVerificationTokenRepository repo;
     private final MailService mail;
 
+    private final ObjectMapper objectMapper;
+    private final PasswordEncoder encoder;
+
+    private final UserRepository userRepo;
+    private final ProfileRepository profileRepo;
+
     private static final Duration TTL = Duration.ofHours(24);
     private static final Duration RESEND_COOL = Duration.ofMinutes(3);
 
-    /** 6자리 코드 발급 + 메일 전송 */
+    /** 6자리 코드 발급 + 메일 전송 (가입대기: User 생성 X) */
     @Transactional
-    public void issueAndSend(User user) {
-        String code = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000)); // 000000~999999
+    public void issueAndSend(SignupReq dto) {
+        String code = nextUniqueCode();
+
+        PendingSignupPayload payload = new PendingSignupPayload(
+                dto.email(),
+                dto.username(),
+                encoder.encode(dto.password()),
+                dto.name(),
+                dto.phoneNumber(),
+                dto.nickname(),
+                dto.birthDate(),
+                dto.gender(),
+                dto.campus()
+        );
+
+        String payloadJson = toJson(payload);
 
         EmailVerificationToken v = EmailVerificationToken.builder()
-                .user(user)
-                .email(user.getEmail())
-                .token(code) // 숫자 코드 저장
+                .user(null)
+                .email(dto.email())
+                .token(code)
                 .expiresAt(LocalDateTime.now().plus(TTL))
+                .signupPayload(payloadJson)
                 .build();
 
         repo.save(v);
-        mail.sendVerificationMail(user.getEmail(), code);
+        mail.sendVerificationMail(dto.email(), code);
     }
 
-    /** 인증번호 재발송 쿨타임 체크 */
+    /** 재발송 쿨타임 체크 (email 기준) */
     @Transactional(readOnly = true)
-    public void assertResendAllowed(Long userId) {
-        repo.findTopByUserIdOrderByCreatedAtDesc(userId).ifPresent(v -> {
+    public void assertResendAllowed(String email) {
+        repo.findTopByEmailOrderByCreatedAtDesc(email).ifPresent(v -> {
             if (v.getCreatedAt().isAfter(LocalDateTime.now().minus(RESEND_COOL))) {
-                throw new IllegalStateException("Too frequent resend");
+                throw new AuthException(ErrorCode.TOO_FREQUENT_RESEND);
             }
         });
     }
 
-    /** 링크 눌러서 인증하는건에 인증번호로 해서 필요 ㄴㄴ) 
+    /** 재발송: 최근 payload 그대로 새 코드 발급 + 새 레코드 저장 + 메일 전송 */
     @Transactional
-    public boolean verify(String token) {
-        EmailVerificationToken v = repo.findByToken(token)
-                .orElseThrow(() -> new IllegalArgumentException("invalid token"));
-        if (v.getVerifiedAt() != null) throw new IllegalStateException("already used");
-        if (v.getExpiresAt().isBefore(LocalDateTime.now())) throw new IllegalStateException("expired");
+    public void resendCode(String email) {
+        EmailVerificationToken last = repo.findTopByEmailOrderByCreatedAtDesc(email)
+                .orElseThrow(() -> new AuthException(ErrorCode.VERIFICATION_REQUIRED));
 
-        v.setVerifiedAt(LocalDateTime.now());
-        v.getUser().setSchoolVerified(true);
-        return true;
-    }*/
+        if (last.getVerifiedAt() != null) {
+            throw new AuthException(ErrorCode.FORBIDDEN_ACCESS);
+        }
 
-    //이메일 + 6자리 코드 검증
+        String code = nextUniqueCode();
+
+        EmailVerificationToken v = EmailVerificationToken.builder()
+                .user(null)
+                .email(email)
+                .token(code)
+                .expiresAt(LocalDateTime.now().plus(TTL))
+                .signupPayload(last.getSignupPayload())
+                .build();
+
+        repo.save(v);
+        mail.sendVerificationMail(email, code);
+    }
+
+    /**
+     * 이메일 + 6자리 코드 검증 (여기서 User/Profile 생성)
+     * @return 생성된 userId
+     */
     @Transactional
-    public boolean verifyCode(String email, String code) {
+    public Long verifyCodeAndCreateUser(String email, String code) {
         EmailVerificationToken v = repo.findTopByEmailOrderByCreatedAtDesc(email)
-                .orElseThrow(() -> new IllegalArgumentException("코드를 먼저 발송하세요."));
-        if (v.getVerifiedAt() != null) throw new IllegalStateException("이미 인증되었습니다.");
-        if (v.getExpiresAt().isBefore(LocalDateTime.now())) throw new IllegalStateException("코드가 만료되었습니다.");
-        if (!v.getToken().equals(code)) throw new IllegalArgumentException("코드가 일치하지 않습니다.");
+                .orElseThrow(() -> new AuthException(ErrorCode.VERIFICATION_REQUIRED));
+
+        if (v.getVerifiedAt() != null) throw new AuthException(ErrorCode.FORBIDDEN_ACCESS);
+        if (v.getExpiresAt().isBefore(LocalDateTime.now())) throw new AuthException(ErrorCode.VERIFICATION_CODE_EXPIRED);
+        if (!v.getToken().equals(code)) throw new AuthException(ErrorCode.VERIFICATION_CODE_MISMATCH);
+
+        PendingSignupPayload payload = fromJson(v.getSignupPayload(), PendingSignupPayload.class);
+
+        // 인증 성공 시점 최종 중복 방어
+        if (userRepo.existsByEmail(payload.email())) throw new AuthException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        if (userRepo.existsByUsername(payload.username())) throw new AuthException(ErrorCode.USERNAME_ALREADY_EXISTS);
+        if (profileRepo.existsByNickname(payload.nickname())) throw new AuthException(ErrorCode.NICKNAME_ALREADY_EXISTS);
+
+        User u = userRepo.save(User.builder()
+                .email(payload.email())
+                .username(payload.username())
+                .password(payload.encodedPassword())
+                .name(payload.name())
+                .phoneNumber(payload.phoneNumber())
+                .schoolVerified(true)
+                .build());
+
+        profileRepo.save(Profile.builder()
+                .user(u)
+                .nickname(payload.nickname())
+                .birthDate(payload.birthDate())
+                .gender(payload.gender())
+                .campus(payload.campus())
+                .build());
 
         v.setVerifiedAt(LocalDateTime.now());
-        v.getUser().setSchoolVerified(true);
-        return true;
+        v.setUser(u);
+
+        return u.getId();
+    }
+
+    // ---------- utils ----------
+
+    private String nextUniqueCode() {
+        for (int i = 0; i < 10; i++) {
+            String code = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
+            if (repo.findByToken(code).isEmpty()) return code;
+        }
+        throw new AuthException(ErrorCode.INTERNAL_SERVER_ERROR);
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            throw new AuthException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    private <T> T fromJson(String json, Class<T> type) {
+        try {
+            return objectMapper.readValue(json, type);
+        } catch (Exception e) {
+            throw new AuthException(ErrorCode.INTERNAL_SERVER_ERROR);
+        }
     }
 }
