@@ -1,0 +1,24 @@
+# src/main/resources/application.yml
+
+spring:
+  application:
+    name: Globoo
+  datasource:
+    url: jdbc:postgresql://gitget-db.ch2662mu8mgf.ap-northeast-2.rds.amazonaws.com:5432/gitget
+    username: postgres
+    password: globoo1234
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+        show_sql: true
+
+globoo:
+  translation:
+    deepl:
+      url: "https://api-free.deepl.com/v2/translate"
+    libre:
+      url: "http://localhost:5000/translate" # Docker로 띄운 주소
