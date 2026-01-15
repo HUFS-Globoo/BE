@@ -27,18 +27,19 @@ public class CommentRes {
         this.author = author;
     }
 
-    // 작성자 정보를 담을 내부 DTO
     @Getter
     public static class AuthorDto {
         private final Long id;
         private final String nickname;
         private final String profileImageUrl;
+        private final String country; // 국적추가
 
         @Builder
-        public AuthorDto(Long id, String nickname, String profileImageUrl) {
+        public AuthorDto(Long id, String nickname, String profileImageUrl, String country) {
             this.id = id;
             this.nickname = nickname;
             this.profileImageUrl = profileImageUrl;
+            this.country = country;
         }
     }
 }
