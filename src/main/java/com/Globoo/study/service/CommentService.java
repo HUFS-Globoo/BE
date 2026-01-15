@@ -3,6 +3,7 @@ package com.Globoo.study.service;
 import com.Globoo.study.DTO.CommentPageRes;
 import com.Globoo.study.DTO.CommentReq;
 import com.Globoo.study.DTO.CommentRes;
+import com.Globoo.study.DTO.MyCommentRes;
 import com.Globoo.study.domain.Comment;
 import com.Globoo.study.domain.StudyPost;
 import com.Globoo.study.repository.CommentRepository;
@@ -79,7 +80,7 @@ public class CommentService {
 
         Pageable pageable = PageRequest.of(validatedPage, validatedSize, Sort.by(direction, sortProperty));
 
-        // ✅ Repository에서 user/profile을 같이 로딩(EntityGraph 적용됨)
+        //Repository에서 user/profile을 같이 로딩(EntityGraph 적용됨)
         Page<Comment> commentPage = commentRepository.findByStudyPostId(postId, pageable);
 
         Page<CommentRes> commentResPage = commentPage.map(this::convertToResponseDto);
@@ -125,7 +126,7 @@ public class CommentService {
         commentRepository.delete(comment);
     }
 
-    /** ✅ 마이페이지 - 내가 작성한 댓글 목록 */
+    /**(기존) 마이페이지 - 내가 작성한 댓글 목록 (댓글만) */
     @Transactional(readOnly = true)
     public List<CommentRes> getMyComments(Long currentUserId) {
         List<Comment> comments = commentRepository.findAllByUserIdOrderByCreatedAtDesc(currentUserId);
@@ -135,17 +136,25 @@ public class CommentService {
                 .toList();
     }
 
-    /** Entity -> DTO 변환 (공통) */
+    /**(추가) 마이페이지 - 내가 작성한 댓글 목록 (댓글 + 스터디 요약 + 게시글 작성자 프로필/국적 포함) */
+    @Transactional(readOnly = true)
+    public List<MyCommentRes> getMyCommentsForMyPage(Long currentUserId) {
+        List<Comment> comments = commentRepository.findMyCommentsForMyPage(currentUserId);
+
+        return comments.stream()
+                .map(this::toMyCommentRes)
+                .toList();
+    }
+
+    /** Entity -> 댓글 DTO 변환 (공통) */
     private CommentRes convertToResponseDto(Comment comment) {
         User user = comment.getUser();
         Profile profile = user.getProfile();
 
-        // ✅ nickname: profile 우선, 없으면 username
         String nickname = (profile != null && profile.getNickname() != null)
                 ? profile.getNickname()
                 : user.getUsername();
 
-        // ✅ profileImageUrl: profile 우선(너 말대로 profile에 있음), 없으면 user 쪽(혹시 몰라서 fallback)
         String profileImageUrl = null;
         if (profile != null && profile.getProfileImage() != null) {
             profileImageUrl = profile.getProfileImage();
@@ -153,7 +162,6 @@ public class CommentService {
             profileImageUrl = user.getProfileImageUrl();
         }
 
-        // ✅ country: profile에 있음 (enum이면 name으로 문자열 변환)
         String country = null;
         if (profile != null && profile.getCountry() != null) {
             country = profile.getCountry();
@@ -173,6 +181,64 @@ public class CommentService {
                 .createdAt(comment.getCreatedAt())
                 .updatedAt(comment.getUpdatedAt())
                 .author(authorDto)
+                .build();
+    }
+
+    /**(추가) Entity -> 마이페이지 전용 DTO 변환 */
+    private MyCommentRes toMyCommentRes(Comment comment) {
+        User me = comment.getUser();
+        Profile myProfile = me.getProfile();
+
+        StudyPost post = comment.getStudyPost();
+        User postAuthor = post.getUser();
+        Profile postAuthorProfile = (postAuthor != null) ? postAuthor.getProfile() : null;
+
+        // 나(author)
+        String myNickname = (myProfile != null && myProfile.getNickname() != null)
+                ? myProfile.getNickname()
+                : me.getUsername();
+
+        String myProfileImage = (myProfile != null) ? myProfile.getProfileImage() : null;
+        String myCountry = (myProfile != null) ? myProfile.getCountry() : null;
+
+        MyCommentRes.AuthorDto authorDto = MyCommentRes.AuthorDto.builder()
+                .id(me.getId())
+                .nickname(myNickname)
+                .profileImageUrl(myProfileImage)
+                .country(myCountry)
+                .build();
+
+        // 게시글 작성자(author)
+        MyCommentRes.PostAuthorDto postAuthorDto = null;
+        if (postAuthor != null) {
+            String paProfileImage = (postAuthorProfile != null) ? postAuthorProfile.getProfileImage() : null;
+            String paCountry = (postAuthorProfile != null) ? postAuthorProfile.getCountry() : null;
+
+            postAuthorDto = MyCommentRes.PostAuthorDto.builder()
+                    .id(postAuthor.getId())
+                    .profileImageUrl(paProfileImage)
+                    .country(paCountry)
+                    .build();
+        }
+
+        // 게시글 요약
+        MyCommentRes.StudySummaryDto studyDto = MyCommentRes.StudySummaryDto.builder()
+                .postId(post.getId())
+                .title(post.getTitle())
+                .status(post.getStatus())
+                .currentParticipants(post.getMembers() == null ? 0 : post.getMembers().size())
+                .capacity(post.getCapacity())
+                .campuses(post.getCampuses())
+                .languages(post.getLanguages())
+                .author(postAuthorDto)
+                .build();
+
+        return MyCommentRes.builder()
+                .commentId(comment.getId())
+                .content(comment.getContent())
+                .createdAt(comment.getCreatedAt())
+                .author(authorDto)
+                .study(studyDto)
                 .build();
     }
 }
