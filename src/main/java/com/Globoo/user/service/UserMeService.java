@@ -63,7 +63,7 @@ public class UserMeService {
                 .name(u.getName())
                 .nickname(p.getNickname())
                 .mbti(p.getMbti())
-                .profileImageUrl(imageUrl) // 수정된 이미지 URL 적용
+                .profileImageUrl(imageUrl)
                 .infoTitle(p.getInfoTitle())
                 .infoContent(p.getInfoContent())
                 .campus(p.getCampus())
@@ -173,9 +173,15 @@ public class UserMeService {
 
     @Transactional
     public void updateMyKeywords(Long userId, MyKeywordsUpdateReq req) {
-        List<String> p = Optional.ofNullable(req.getPersonality()).orElseGet(List::of);
-        List<String> h = Optional.ofNullable(req.getHobby()).orElseGet(List::of);
-        List<String> t = Optional.ofNullable(req.getTopic()).orElseGet(List::of);
+        // ✅ (선택) 중복 제거 후 처리: 중복으로 3개 채우는 걸 방지
+        List<String> p = new ArrayList<>(new LinkedHashSet<>(Optional.ofNullable(req.getPersonality()).orElseGet(List::of)));
+        List<String> h = new ArrayList<>(new LinkedHashSet<>(Optional.ofNullable(req.getHobby()).orElseGet(List::of)));
+        List<String> t = new ArrayList<>(new LinkedHashSet<>(Optional.ofNullable(req.getTopic()).orElseGet(List::of)));
+
+        // ✅ 각 카테고리당 3~5개 제한 + 에러 메시지
+        validateKeywordCount(p);
+        validateKeywordCount(h);
+        validateKeywordCount(t);
 
         List<Keyword> kp = kwRepo.findAllByCategoryAndNameIn(Keyword.Category.PERSONALITY, p);
         if (kp.size() != p.size()) {
@@ -193,29 +199,43 @@ public class UserMeService {
         }
 
         userKwRepo.deleteByUserId(userId);
+
+        User userRef = User.builder().id(userId).build();
+
         for (Keyword k : kp) {
             userKwRepo.save(UserKeyword.builder()
-                    .user(User.builder().id(userId).build())
+                    .user(userRef)
                     .keyword(k)
                     .build());
         }
         for (Keyword k : kh) {
             userKwRepo.save(UserKeyword.builder()
-                    .user(User.builder().id(userId).build())
+                    .user(userRef)
                     .keyword(k)
                     .build());
         }
         for (Keyword k : kt) {
             userKwRepo.save(UserKeyword.builder()
-                    .user(User.builder().id(userId).build())
+                    .user(userRef)
                     .keyword(k)
                     .build());
+        }
+    }
+
+    // 에러메시지!
+    private void validateKeywordCount(List<String> keywords) {
+        int size = keywords.size();
+        if (size < 3 || size > 5) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "각 키워드는 최소 3개에서 5개까지 선택해야 합니다."
+            );
         }
     }
 
     @Transactional
     public void updateProfileImage(Long userId, String imageUrl) {
         Profile p = profileRepo.findByUserId(userId).orElseThrow();
-        p.setProfileImage(imageUrl); // 실제 파일 업로드는 Controller에서 처리
+        p.setProfileImage(imageUrl);
     }
 }

@@ -59,4 +59,7 @@ public interface ProfileRepository
         where (:campus is null or p.campus = :campus)
         """)
     Page<Profile> findAllWithRelations(@Param("campus") Campus campus, Pageable pageable);
+
+    // ✅ 닉네임 중복 체크 (회원가입 예외처리용)
+    boolean existsByNickname(String nickname);
 }

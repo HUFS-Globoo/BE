@@ -1,7 +1,7 @@
 // src/main/java/com/Globoo/common/security/SecurityUtils.java
 package com.Globoo.common.security;
 
-import com.Globoo.common.error.AuthorizationException;
+import com.Globoo.common.error.AuthException;
 import com.Globoo.common.error.ErrorCode;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -38,7 +38,7 @@ public final class SecurityUtils {
     /** 로그인 유저의 ID (없으면 401) */
     public static Long requiredUserId() {
         Long id = currentUserId();
-        if (id == null) throw new AuthorizationException(ErrorCode.UNAUTHORIZED); // 변경됨
+        if (id == null) throw new AuthException(ErrorCode.UNAUTHORIZED); // 변경됨
         return id;
     }
 
@@ -49,7 +49,7 @@ public final class SecurityUtils {
         if (authentication == null || !authentication.isAuthenticated()
                 || authentication instanceof AnonymousAuthenticationToken) { // 변경됨
             // 인증 정보가 없는 경우 (토큰이 없거나 유효하지 않음)
-            throw new AuthorizationException(ErrorCode.UNAUTHORIZED);
+            throw new AuthException(ErrorCode.UNAUTHORIZED);
         }
 
         try {
@@ -57,7 +57,7 @@ public final class SecurityUtils {
             return Long.parseLong((String) authentication.getPrincipal());
         } catch (NumberFormatException | ClassCastException e) {
             // Principal이 예상과 다른 타입일 경우
-            throw new AuthorizationException(ErrorCode.UNAUTHORIZED);
+            throw new AuthException(ErrorCode.UNAUTHORIZED);
         }
     }
 }

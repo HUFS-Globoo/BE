@@ -1,21 +1,21 @@
-// src/main/java/com/Globoo/auth/service/AuthService.java
 package com.Globoo.auth.service;
 
 import com.Globoo.auth.domain.RefreshToken;
 import com.Globoo.auth.dto.*;
 import com.Globoo.auth.repository.RefreshTokenRepository;
+import com.Globoo.common.error.AuthException;
+import com.Globoo.common.error.ErrorCode;
 import com.Globoo.common.security.JwtTokenProvider;
 import com.Globoo.profile.store.ProfileRepository;
-import com.Globoo.user.domain.*;
-import com.Globoo.user.repository.*;
+import com.Globoo.user.domain.User;
+import com.Globoo.user.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
-import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -27,110 +27,50 @@ public class AuthService {
     private final JwtTokenProvider jwt;
     private final EmailVerificationService emailVerif;
 
-    // 회원가입 시 함께 저장에 필요한 레포지토리
+    // 닉네임 중복 체크용
     private final ProfileRepository profileRepo;
-    private final LanguageRepository languageRepo;
-    private final UserLanguageRepository userLanguageRepo;
-    private final KeywordRepository keywordRepo;
-    private final UserKeywordRepository userKeywordRepo;
 
     @Transactional
     public SignupRes signup(SignupReq dto) {
-        if (userRepo.existsByEmail(dto.email())) throw new IllegalArgumentException("email exists");
-        if (userRepo.existsByUsername(dto.username())) throw new IllegalArgumentException("username exists");
+        if (userRepo.existsByEmail(dto.email())) throw new AuthException(ErrorCode.EMAIL_ALREADY_EXISTS);
+        if (userRepo.existsByUsername(dto.username())) throw new AuthException(ErrorCode.USERNAME_ALREADY_EXISTS);
+        if (profileRepo.existsByNickname(dto.nickname())) throw new AuthException(ErrorCode.NICKNAME_ALREADY_EXISTS);
 
-        // 1) users
-        User u = userRepo.save(User.builder()
-                .email(dto.email())
-                .username(dto.username())
-                .password(encoder.encode(dto.password()))
-                .name(dto.name())
-                // .phoneNumber(dto.phoneNumber()) // User에 필드 있으면 사용
-                .schoolVerified(false)
-                .build());
+        // ✅ 유저 생성은 verify-code 성공 시점에만!
+        emailVerif.issueAndSend(dto);
 
-        // 2) profiles
-        profileRepo.save(Profile.builder()
-                .user(u)
-                .nickname(dto.nickname())
-                .birthDate(dto.birthDate())
-                .gender(dto.gender())
-                .campus(dto.campus())
-                .country(dto.nationalityCode())
-                .mbti(dto.mbti())
-                .build());
-
-        // 3) user_languages (NATIVE / LEARN)
-        Language nativeLang = languageRepo.findById(dto.nativeLanguageCode())
-                .orElseThrow(() -> new IllegalArgumentException("Unknown language: " + dto.nativeLanguageCode()));
-        userLanguageRepo.save(UserLanguage.builder()
-                .user(u).language(nativeLang).type(LanguageType.NATIVE).build());
-
-        Language learnLang = languageRepo.findById(dto.preferredLanguageCode())
-                .orElseThrow(() -> new IllegalArgumentException("Unknown language: " + dto.preferredLanguageCode()));
-        userLanguageRepo.save(UserLanguage.builder()
-                .user(u).language(learnLang).type(LanguageType.LEARN).build());
-
-        // 4) user_keywords (카테고리별 최대 10개, 중복 입력 정리, 자동 생성 금지)
-        List<String> personality = Optional.ofNullable(dto.personalityKeywords()).orElse(List.of());
-        List<String> hobby       = Optional.ofNullable(dto.hobbyKeywords()).orElse(List.of());
-        List<String> topic       = Optional.ofNullable(dto.topicKeywords()).orElse(List.of());
-
-        if (personality.size() > 10 || hobby.size() > 10 || topic.size() > 10) {
-            throw new IllegalArgumentException("each keyword list must be <= 10");
-        }
-
-        var pNames = toDedupedSet(personality);
-        var hNames = toDedupedSet(hobby);
-        var tNames = toDedupedSet(topic);
-
-        // 현재 스키마: name 전역 유일 → name으로 벌크 조회
-        List<Keyword> pFound = pNames.isEmpty() ? List.of() : keywordRepo.findAllByNameIn(pNames);
-        List<Keyword> hFound = hNames.isEmpty() ? List.of() : keywordRepo.findAllByNameIn(hNames);
-        List<Keyword> tFound = tNames.isEmpty() ? List.of() : keywordRepo.findAllByNameIn(tNames);
-
-        assertNoMissing("PERSONALITY", pNames, pFound);
-        assertNoMissing("HOBBY",       hNames, hFound);
-        assertNoMissing("TOPIC",       tNames, tFound);
-
-        var toSave = new ArrayList<UserKeyword>(pFound.size() + hFound.size() + tFound.size());
-        for (Keyword kw : pFound) toSave.add(UserKeyword.builder().user(u).keyword(kw).build());
-        for (Keyword kw : hFound) toSave.add(UserKeyword.builder().user(u).keyword(kw).build());
-        for (Keyword kw : tFound) toSave.add(UserKeyword.builder().user(u).keyword(kw).build());
-        userKeywordRepo.saveAll(toSave);
-
-        // 5) 이메일 인증 발송
-        emailVerif.issueAndSend(u);
-
-        return new SignupRes(u.getId(), u.getEmail(), u.getUsername(), dto.nickname(), u.isSchoolVerified());
+        return new SignupRes(null, dto.email(), dto.username(), dto.nickname(), false);
     }
 
     @Transactional
     public OkRes resend(ResendReq req) {
-        User u = userRepo.findByEmail(req.email()).orElseThrow();
-        if (u.isSchoolVerified()) throw new IllegalStateException("already verified");
-        emailVerif.assertResendAllowed(u.getId());
-        emailVerif.issueAndSend(u);
+        emailVerif.assertResendAllowed(req.email());
+        emailVerif.resendCode(req.email());
         return new OkRes(true);
     }
 
     @Transactional
     public TokenRes login(LoginReq req) {
         User u = userRepo.findByEmail(req.email())
-                .orElseThrow(() -> new IllegalArgumentException("invalid"));
-        if (!encoder.matches(req.password(), u.getPassword()))
-            throw new IllegalArgumentException("invalid");
-        if (!u.isSchoolVerified()) throw new AccessDeniedException("email not verified");
+                .orElseThrow(() -> new AuthException(ErrorCode.INVALID_CREDENTIALS));
+
+        if (!encoder.matches(req.password(), u.getPassword())) {
+            throw new AuthException(ErrorCode.INVALID_CREDENTIALS);
+        }
+
+        if (!u.isSchoolVerified()) {
+            throw new AuthException(ErrorCode.EMAIL_NOT_VERIFIED);
+        }
 
         String access = jwt.createAccessToken(u.getId(), u.getEmail());
         String refresh = UUID.randomUUID().toString();
+
         rtRepo.save(RefreshToken.builder()
                 .user(u)
                 .token(refresh)
                 .expiresAt(LocalDateTime.now().plusDays(14))
                 .build());
 
-        //  userId를 응답에 포함
         return new TokenRes(
                 access,
                 refresh,
@@ -143,15 +83,18 @@ public class AuthService {
     @Transactional
     public TokenRes refresh(String refreshToken) {
         RefreshToken rt = rtRepo.findByToken(refreshToken)
-                .orElseThrow(() -> new IllegalArgumentException("invalid"));
-        if (rt.isExpired() || rt.isRevoked())
-            throw new IllegalStateException("expired/revoked");
-        if (!rt.getUser().isSchoolVerified())
-            throw new AccessDeniedException("email not verified");
+                .orElseThrow(() -> new AuthException(ErrorCode.UNAUTHORIZED));
+
+        if (rt.isExpired() || rt.isRevoked()) {
+            throw new AuthException(ErrorCode.UNAUTHORIZED);
+        }
+
+        if (!rt.getUser().isSchoolVerified()) {
+            throw new AuthException(ErrorCode.EMAIL_NOT_VERIFIED);
+        }
 
         String access = jwt.createAccessToken(rt.getUser().getId(), rt.getUser().getEmail());
 
-        // 여기서도 userId 같이 내려주기
         return new TokenRes(
                 access,
                 refreshToken,
@@ -166,27 +109,5 @@ public class AuthService {
         rtRepo.findByToken(refreshToken)
                 .ifPresent(t -> t.setRevokedAt(LocalDateTime.now()));
         return new OkRes(true);
-    }
-
-    // ---------- utils ----------
-    private static LinkedHashSet<String> toDedupedSet(List<String> src) {
-        return src.stream()
-                .filter(Objects::nonNull)
-                .map(String::trim)
-                .filter(s -> !s.isEmpty())
-                .collect(java.util.stream.Collectors.toCollection(LinkedHashSet::new));
-    }
-
-    private static void assertNoMissing(String categoryLabel,
-                                        Set<String> requested,
-                                        List<Keyword> found) {
-        var foundNames = found.stream()
-                .map(Keyword::getName)
-                .collect(java.util.stream.Collectors.toSet());
-        var missing = new LinkedHashSet<>(requested);
-        missing.removeAll(foundNames);
-        if (!missing.isEmpty()) {
-            throw new IllegalArgumentException("Unknown " + categoryLabel + " keywords: " + missing);
-        }
     }
 }
