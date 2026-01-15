@@ -20,7 +20,7 @@ spring:
 
 logging:
   level:
-    org.hibernate.SQL: info
+    org.hibernate.SQL: info # 디버그 너무 많으면 로그 파일 커지니까 info로 변경 추천
     org.hibernate.orm.jdbc.bind: trace
     org.springframework.security: info
     org.springframework.web: INFO
@@ -39,7 +39,7 @@ globoo:
     profile-dir: /home/ubuntu/app/uploads/profile/
     # 주의: /app/... 은 권한 문제 생길 수 있어 /home/ubuntu/... 권장
 
-# 번역 API 관련 내용
+  # 번역 API 관련 내용 (새로 추가됨)
   translation:
     deepl:
       url: "https://api-free.deepl.com/v2/translate"
