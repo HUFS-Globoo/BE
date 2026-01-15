@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 
 
 public record LoginReq(
-        String email,
-        String username,
+        @NotBlank String email,
+        @NotBlank String username,
         @NotBlank String password
 ) {}

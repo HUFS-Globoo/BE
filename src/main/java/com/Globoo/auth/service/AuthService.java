@@ -54,6 +54,11 @@ public class AuthService {
         User u = userRepo.findByEmail(req.email())
                 .orElseThrow(() -> new AuthException(ErrorCode.INVALID_CREDENTIALS));
 
+        // [추가]: username(아이디)도 반드시 일치해야 로그인 성공...누락된거 포함 !
+        if (req.username() == null || !u.getUsername().equals(req.username())) {
+            throw new AuthException(ErrorCode.INVALID_CREDENTIALS);
+        }
+
         if (!encoder.matches(req.password(), u.getPassword())) {
             throw new AuthException(ErrorCode.INVALID_CREDENTIALS);
         }
