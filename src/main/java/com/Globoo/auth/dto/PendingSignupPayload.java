@@ -1,6 +1,5 @@
 package com.Globoo.auth.dto;
 
-import com.Globoo.user.domain.Campus;
 import com.Globoo.user.domain.Gender;
 
 import java.time.LocalDate;
@@ -13,6 +12,5 @@ public record PendingSignupPayload(
         String phoneNumber,
         String nickname,
         LocalDate birthDate,
-        Gender gender,
-        Campus campus
+        Gender gender
 ) {}
