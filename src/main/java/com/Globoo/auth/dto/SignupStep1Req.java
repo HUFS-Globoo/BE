@@ -1,8 +1,10 @@
 package com.Globoo.auth.dto;
 
-import com.Globoo.user.domain.Campus;
 import com.Globoo.user.domain.Gender;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 
@@ -40,6 +42,6 @@ public record SignupStep1Req(
         String nickname,
 
         LocalDate birthDate,   // optional
-        Gender gender,         // optional
-        Campus campus          // optional
+        Gender gender         // optional
+
 ) {}

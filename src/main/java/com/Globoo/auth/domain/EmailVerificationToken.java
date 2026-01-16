@@ -17,7 +17,7 @@ public class EmailVerificationToken {
     @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
-    // ✅ 인증 전에는 User가 없으므로 nullable=true
+    // 인증 전에는 User가 없으므로 nullable=true
     @ManyToOne(fetch= FetchType.LAZY)
     @JoinColumn(name="user_id", nullable=true)
     private User user;
