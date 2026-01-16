@@ -50,7 +50,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()     // CORS preflight 허용
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()             // Swagger 접근 허용
-                        .requestMatchers("/api/auth/**").permitAll()                // 로그인/회원가입 허용
+                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers("/api/onboarding/**").permitAll()// 로그인/회원가입 허용
                         .requestMatchers("/api/keywords/**",
                                 "/api/languages/**",
                                 "/api/countries/**").permitAll()

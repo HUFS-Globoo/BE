@@ -139,4 +139,13 @@ public class UserMeController {
         Long uid = SecurityUtils.requiredUserId();
         return commentService.getMyComments(uid);
     }
+
+
+    @DeleteMapping
+    @Operation(summary = "회원탈퇴(내 계정 삭제)")
+    public void withdraw() {
+        Long uid = SecurityUtils.requiredUserId();
+        svc.withdraw(uid); // UserMeService에 구현
+    }
+
 }

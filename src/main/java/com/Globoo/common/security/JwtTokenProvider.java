@@ -19,18 +19,43 @@ public class JwtTokenProvider {
     @Value("${jwt.access-token-validity-seconds:3600}")
     private long accessTokenValiditySeconds;
 
+    @Value("${jwt.onboarding-token-validity-seconds:1800}") // 30분
+    private long onboardingTokenValiditySeconds;
+
+    private static final String CLAIM_EMAIL = "email";
+    private static final String CLAIM_TYPE  = "type";
+    private static final String TYPE_ACCESS = "ACCESS";
+    private static final String TYPE_ONBOARDING = "ONBOARDING";
+
     public JwtTokenProvider(@Value("${jwt.secret}") String base64Secret) {
-        byte[] keyBytes = Decoders.BASE64.decode(base64Secret); // Base64 decode!
-        this.key = Keys.hmacShaKeyFor(keyBytes);                //32B 이상이면 OK
+        byte[] keyBytes = Decoders.BASE64.decode(base64Secret);
+        this.key = Keys.hmacShaKeyFor(keyBytes);
     }
 
+    /** 로그인용 Access Token */
     public String createAccessToken(Long userId, String email) {
         Date now = new Date();
         Date expiry = new Date(now.getTime() + accessTokenValiditySeconds * 1000);
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
-                .claim("email", email)
+                .claim(CLAIM_EMAIL, email)
+                .claim(CLAIM_TYPE, TYPE_ACCESS)
+                .issuedAt(now)
+                .expiration(expiry)
+                .signWith(key)
+                .compact();
+    }
+
+    /** 온보딩(Step3/4) 전용 토큰: 로그인 아님 */
+    public String createOnboardingToken(Long userId, String email) {
+        Date now = new Date();
+        Date expiry = new Date(now.getTime() + onboardingTokenValiditySeconds * 1000);
+
+        return Jwts.builder()
+                .subject(String.valueOf(userId))
+                .claim(CLAIM_EMAIL, email)
+                .claim(CLAIM_TYPE, TYPE_ONBOARDING)
                 .issuedAt(now)
                 .expiration(expiry)
                 .signWith(key)
@@ -50,6 +75,18 @@ public class JwtTokenProvider {
     }
 
     public String getEmail(String token) {
-        return parse(token).getPayload().get("email", String.class);
+        return parse(token).getPayload().get(CLAIM_EMAIL, String.class);
+    }
+
+    public String getType(String token) {
+        return parse(token).getPayload().get(CLAIM_TYPE, String.class);
+    }
+
+    public boolean isAccessToken(String token) {
+        return TYPE_ACCESS.equals(getType(token));
+    }
+
+    public boolean isOnboardingToken(String token) {
+        return TYPE_ONBOARDING.equals(getType(token));
     }
 }
