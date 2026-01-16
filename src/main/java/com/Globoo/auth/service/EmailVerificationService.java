@@ -7,6 +7,7 @@ import com.Globoo.auth.repository.EmailVerificationTokenRepository;
 import com.Globoo.common.error.AuthException;
 import com.Globoo.common.error.ErrorCode;
 import com.Globoo.profile.store.ProfileRepository;
+import com.Globoo.user.domain.Campus;
 import com.Globoo.user.domain.Profile;
 import com.Globoo.user.domain.User;
 import com.Globoo.user.repository.UserRepository;
@@ -48,8 +49,7 @@ public class EmailVerificationService {
                 dto.phoneNumber(),
                 dto.nickname(),
                 dto.birthDate(),
-                dto.gender(),
-                dto.campus()
+                dto.gender()
         );
 
         String payloadJson = toJson(payload);
@@ -101,11 +101,11 @@ public class EmailVerificationService {
     }
 
     /**
-     * 이메일 + 6자리 코드 검증 (여기서 User/Profile 생성)
+     * Step2: 이메일 + 6자리 코드 + 캠퍼스 검증 (여기서 User/Profile 생성)
      * @return 생성된 userId
      */
     @Transactional
-    public Long verifyCodeAndCreateUser(String email, String code) {
+    public Long verifyCodeAndCreateUser(String email, String code, Campus campus) {
         EmailVerificationToken v = repo.findTopByEmailOrderByCreatedAtDesc(email)
                 .orElseThrow(() -> new AuthException(ErrorCode.VERIFICATION_REQUIRED));
 
@@ -134,7 +134,7 @@ public class EmailVerificationService {
                 .nickname(payload.nickname())
                 .birthDate(payload.birthDate())
                 .gender(payload.gender())
-                .campus(payload.campus())
+                .campus(campus)   // ✅ Step2에서 받은 campus로 저장
                 .build());
 
         v.setVerifiedAt(LocalDateTime.now());
