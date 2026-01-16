@@ -47,3 +47,9 @@ globoo:
       url: "http://localhost:5000/translate"
 
 # 배포 테스트용 주석
+
+server:
+  port: 8080
+  forward-headers-strategy: framework # Nginx에서 보낸 X-Forwarded-* 헤더를 해석함
+  tomcat:
+    use-relative-redirects: true
