@@ -20,7 +20,7 @@ public class MyPageCommentController {
 
     private final CommentService commentService;
 
-    @GetMapping("/api/users/me/comments")
+    @GetMapping("/api/users/me/study-comments")
     public ApiResponse<List<MyCommentRes>> myComments(
             @AuthenticationPrincipal Long currentUserId
     ) {
