@@ -50,6 +50,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()     // CORS preflight 허용
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()             // Swagger 접근 허용
+                        .requestMatchers("/", "/index.html").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/onboarding/**").permitAll()// 로그인/회원가입 허용
                         .requestMatchers("/api/keywords/**",
@@ -76,6 +77,7 @@ public class SecurityConfig {
                 "http://127.0.0.1:3000",
                 "http://localhost:5174",                            // Vite 등에서 사용하는 로컬 포트_추가 11.8
                 "http://127.0.0.1:5174",
+                "https://globoo.duckdns.org",
                 "https://instant-gretta-globoo-16d715dd.koyeb.app",  // 백엔드 Koyeb URL
                 "https://globoo-three.vercel.app"
                 // 추후 프론트가 배포되면:
