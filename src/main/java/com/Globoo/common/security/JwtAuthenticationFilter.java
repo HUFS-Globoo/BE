@@ -1,4 +1,3 @@
-// src/main/java/com/Globoo/common/security/JwtAuthenticationFilter.java
 package com.Globoo.common.security;
 
 import com.Globoo.user.repository.UserRepository;
@@ -36,15 +35,22 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = resolveToken(request);
 
         if (StringUtils.hasText(token) && isValid(token)) {
+            String path = request.getRequestURI();
+            boolean isOnboardingPath = path.startsWith("/api/onboarding/");
+
+            // 토큰 타입 강제
+            if (isOnboardingPath && !jwtTokenProvider.isOnboardingToken(token)) {
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
+            if (!isOnboardingPath && !jwtTokenProvider.isAccessToken(token)) {
+                // onboarding 토큰으로 일반 API 접근 차단
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED);
+                return;
+            }
+
             Long userId = jwtTokenProvider.getUserId(token);
-
-            if (userId != null) {
-                boolean exists = userRepository.existsById(userId);
-                if (!exists) {
-                    filterChain.doFilter(request, response);
-                    return;
-                }
-
+            if (userId != null && userRepository.existsById(userId)) {
                 List<SimpleGrantedAuthority> authorities =
                         List.of(new SimpleGrantedAuthority("ROLE_USER"));
 
@@ -68,13 +74,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String resolveToken(HttpServletRequest request) {
-        // 1순위: HTTP Authorization 헤더에서 토큰 찾기
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
 
-        // 2순위: WebSocket 핸드셰이크 시 쿼리 파라미터에서 토큰 찾기
         String queryToken = request.getParameter("token");
         if (StringUtils.hasText(queryToken)) {
             return queryToken;

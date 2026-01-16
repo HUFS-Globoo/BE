@@ -53,10 +53,10 @@ public class UserMeService {
                 .map(k -> k.getKeyword().getName())
                 .toList();
 
-        //프로필 이미지 URL 전처리 (앞 슬래시 제거)
+        // 프로필 이미지 URL 전처리 (앞 슬래시 제거)
         String imageUrl = p.getProfileImage();
         if (imageUrl != null && imageUrl.startsWith("/")) {
-            imageUrl = imageUrl.substring(1); // "/uploads/..." → "uploads/..."
+            imageUrl = imageUrl.substring(1);
         }
 
         return MyPageRes.builder()
@@ -106,11 +106,11 @@ public class UserMeService {
 
     @Transactional
     public void updateMyLanguages(Long userId, MyLanguagesUpdateReq req) {
-        // 요청 중복 제거 (같은 코드 여러 번 와도 한 번만 처리)
+        // 요청 중복 제거
         Set<String> natives = new HashSet<>(Optional.ofNullable(req.getNativeCodes()).orElseGet(List::of));
-        Set<String> learns = new HashSet<>(Optional.ofNullable(req.getLearnCodes()).orElseGet(List::of));
+        Set<String> learns  = new HashSet<>(Optional.ofNullable(req.getLearnCodes()).orElseGet(List::of));
 
-        // 1) 둘 다 비어 있으면 → 해당 유저 언어 전체 삭제 후 종료
+        // 1) 둘 다 비어 있으면 전체 삭제 후 종료
         if (natives.isEmpty() && learns.isEmpty()) {
             userLangRepo.deleteAllByUserId(userId);
             return;
@@ -130,7 +130,7 @@ public class UserMeService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown learn language code");
         }
 
-        // 4) 기존 데이터 싹 삭제 (bulk delete)
+        // 4) 기존 데이터 싹 삭제
         userLangRepo.deleteAllByUserId(userId);
 
         // 5) 새로 저장
@@ -173,12 +173,10 @@ public class UserMeService {
 
     @Transactional
     public void updateMyKeywords(Long userId, MyKeywordsUpdateReq req) {
-        // ✅ (선택) 중복 제거 후 처리: 중복으로 3개 채우는 걸 방지
         List<String> p = new ArrayList<>(new LinkedHashSet<>(Optional.ofNullable(req.getPersonality()).orElseGet(List::of)));
         List<String> h = new ArrayList<>(new LinkedHashSet<>(Optional.ofNullable(req.getHobby()).orElseGet(List::of)));
         List<String> t = new ArrayList<>(new LinkedHashSet<>(Optional.ofNullable(req.getTopic()).orElseGet(List::of)));
 
-        // ✅ 각 카테고리당 3~5개 제한 + 에러 메시지
         validateKeywordCount(p);
         validateKeywordCount(h);
         validateKeywordCount(t);
@@ -203,26 +201,16 @@ public class UserMeService {
         User userRef = User.builder().id(userId).build();
 
         for (Keyword k : kp) {
-            userKwRepo.save(UserKeyword.builder()
-                    .user(userRef)
-                    .keyword(k)
-                    .build());
+            userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
         }
         for (Keyword k : kh) {
-            userKwRepo.save(UserKeyword.builder()
-                    .user(userRef)
-                    .keyword(k)
-                    .build());
+            userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
         }
         for (Keyword k : kt) {
-            userKwRepo.save(UserKeyword.builder()
-                    .user(userRef)
-                    .keyword(k)
-                    .build());
+            userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
         }
     }
 
-    // 에러메시지!
     private void validateKeywordCount(List<String> keywords) {
         int size = keywords.size();
         if (size < 3 || size > 5) {
@@ -237,5 +225,24 @@ public class UserMeService {
     public void updateProfileImage(Long userId, String imageUrl) {
         Profile p = profileRepo.findByUserId(userId).orElseThrow();
         p.setProfileImage(imageUrl);
+    }
+
+    // =========================
+    // 회원탈퇴 (추가)
+    // =========================
+    @Transactional
+    public void withdraw(Long userId) {
+        // 존재 확인
+        if (!userRepo.existsById(userId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
+        }
+
+        // (선택) 유저가 가진 언어/키워드 같은 건 FK CASCADE면 생략 가능
+        // 하지만 Bulk delete가 이미 정의돼 있어서 "깔끔하게" 정리하고 지워도 됨.
+        // userLangRepo.deleteAllByUserId(userId);
+        // userKwRepo.deleteByUserId(userId);
+
+        // 핵심: 유저 삭제 -> FK ON DELETE CASCADE로 연쇄 삭제
+        userRepo.deleteById(userId);
     }
 }

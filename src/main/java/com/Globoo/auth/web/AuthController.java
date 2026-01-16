@@ -3,6 +3,7 @@ package com.Globoo.auth.web;
 import com.Globoo.auth.dto.*;
 import com.Globoo.auth.service.AuthService;
 import com.Globoo.auth.service.EmailVerificationService;
+import com.Globoo.common.security.JwtTokenProvider;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
     private final AuthService auth;
     private final EmailVerificationService emailVerif;
+    private final JwtTokenProvider jwt;
 
     @PostMapping("/signup")
     public SignupRes signup(@Valid @RequestBody SignupReq req){ return auth.signup(req); }
@@ -31,10 +33,11 @@ public class AuthController {
     @PostMapping("/verification/resend")
     public OkRes resend(@Valid @RequestBody ResendReq req){ return auth.resend(req); }
 
-    // 이메일 + 코드 검증 ( 성공 시 User 생성)
+    //이메일 + 코드 검증 (성공 시 User/Profile 생성) + 온보딩 토큰 발급
     @PostMapping("/verify-code")
     public VerifyRes verifyCode(@Valid @RequestBody VerifyCodeReq req){
         Long userId = emailVerif.verifyCodeAndCreateUser(req.email(), req.code());
-        return new VerifyRes(true, userId);
+        String onboardingToken = jwt.createOnboardingToken(userId, req.email());
+        return new VerifyRes(true, userId, onboardingToken);
     }
 }
