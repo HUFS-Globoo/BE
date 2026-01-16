@@ -30,13 +30,14 @@ public class AuthService {
     // 닉네임 중복 체크용
     private final ProfileRepository profileRepo;
 
+    // Step1 DTO로 변경
     @Transactional
-    public SignupRes signup(SignupReq dto) {
+    public SignupRes signup(SignupStep1Req dto) {
         if (userRepo.existsByEmail(dto.email())) throw new AuthException(ErrorCode.EMAIL_ALREADY_EXISTS);
         if (userRepo.existsByUsername(dto.username())) throw new AuthException(ErrorCode.USERNAME_ALREADY_EXISTS);
         if (profileRepo.existsByNickname(dto.nickname())) throw new AuthException(ErrorCode.NICKNAME_ALREADY_EXISTS);
 
-        // ✅ 유저 생성은 verify-code 성공 시점에만!
+        //유저 생성은 verify-code 성공 시점에만!
         emailVerif.issueAndSend(dto);
 
         return new SignupRes(null, dto.email(), dto.username(), dto.nickname(), false);
@@ -54,7 +55,7 @@ public class AuthService {
         User u = userRepo.findByEmail(req.email())
                 .orElseThrow(() -> new AuthException(ErrorCode.INVALID_CREDENTIALS));
 
-        // [추가]: username(아이디)도 반드시 일치해야 로그인 성공...누락된거 포함 !
+        // username도 반드시 일치해야 로그인 성공
         if (req.username() == null || !u.getUsername().equals(req.username())) {
             throw new AuthException(ErrorCode.INVALID_CREDENTIALS);
         }

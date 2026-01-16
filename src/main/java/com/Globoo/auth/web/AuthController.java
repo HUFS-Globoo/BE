@@ -18,8 +18,11 @@ public class AuthController {
     private final EmailVerificationService emailVerif;
     private final JwtTokenProvider jwt;
 
+    // Step1: 기본정보만 받음 + 이메일 코드 발송
     @PostMapping("/signup")
-    public SignupRes signup(@Valid @RequestBody SignupReq req){ return auth.signup(req); }
+    public SignupRes signup(@Valid @RequestBody SignupStep1Req req){
+        return auth.signup(req);
+    }
 
     @PostMapping("/login")
     public TokenRes login(@Valid @RequestBody LoginReq req){ return auth.login(req); }
@@ -33,7 +36,7 @@ public class AuthController {
     @PostMapping("/verification/resend")
     public OkRes resend(@Valid @RequestBody ResendReq req){ return auth.resend(req); }
 
-    //이메일 + 코드 검증 (성공 시 User/Profile 생성) + 온보딩 토큰 발급
+    // Step2: 이메일 + 코드 검증 (성공 시 User/Profile 생성) + 온보딩 토큰 발급
     @PostMapping("/verify-code")
     public VerifyRes verifyCode(@Valid @RequestBody VerifyCodeReq req){
         Long userId = emailVerif.verifyCodeAndCreateUser(req.email(), req.code());

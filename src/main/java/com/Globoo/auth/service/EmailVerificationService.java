@@ -2,7 +2,7 @@ package com.Globoo.auth.service;
 
 import com.Globoo.auth.domain.EmailVerificationToken;
 import com.Globoo.auth.dto.PendingSignupPayload;
-import com.Globoo.auth.dto.SignupReq;
+import com.Globoo.auth.dto.SignupStep1Req;
 import com.Globoo.auth.repository.EmailVerificationTokenRepository;
 import com.Globoo.common.error.AuthException;
 import com.Globoo.common.error.ErrorCode;
@@ -37,7 +37,7 @@ public class EmailVerificationService {
 
     /** 6자리 코드 발급 + 메일 전송 (가입대기: User 생성 X) */
     @Transactional
-    public void issueAndSend(SignupReq dto) {
+    public void issueAndSend(SignupStep1Req dto) {
         String code = nextUniqueCode();
 
         PendingSignupPayload payload = new PendingSignupPayload(
