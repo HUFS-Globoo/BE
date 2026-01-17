@@ -59,9 +59,6 @@ public class SecurityConfig {
                         .requestMatchers("/", "/index.html").permitAll()
 
                         // 인증/온보딩 공개
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()     // CORS preflight 허용
-                        .requestMatchers(SWAGGER_WHITELIST).permitAll()             // Swagger 접근 허용
-                        .requestMatchers("/", "/index.html").permitAll()
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/onboarding/**").permitAll()
 
@@ -102,13 +99,8 @@ public class SecurityConfig {
                 // 커스텀 도메인(프론트가 이 도메인에서 호출하는 경우 대비)
                 "https://globoo.duckdns.org"
 
-                // 백엔드 자기 자신(koyeb)은 origin으로 의미가 거의 없어서 제거해도 무방
+                // 제거해도 ㄱㅊ
                 // "https://instant-gretta-globoo-16d715dd.koyeb.app"
-                "https://globoo.duckdns.org",
-                "https://instant-gretta-globoo-16d715dd.koyeb.app",  // 백엔드 Koyeb URL
-                "https://globoo-three.vercel.app"
-                // 추후 프론트가 배포되면:
-                // "https://globoo-frontend.vercel.app" 같은 실제 프론트 URL 추가
         ));
 
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
