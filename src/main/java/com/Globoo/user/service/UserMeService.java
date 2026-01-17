@@ -5,11 +5,15 @@ import com.Globoo.user.domain.*;
 import com.Globoo.user.dto.*;
 import com.Globoo.user.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -23,6 +27,10 @@ public class UserMeService {
     private final LanguageRepository langRepo;
     private final UserKeywordRepository userKwRepo;
     private final KeywordRepository kwRepo;
+
+    // 프로필 이미지 실제 저장 경로 (UserMeController 업로드 경로와 동일해야 함)
+    @Value("${globoo.upload.profile-dir:/home/ubuntu/app/uploads/profile/}")
+    private String profileUploadDir;
 
     @Transactional(readOnly = true)
     public MyPageRes getMyPage(Long userId) {
@@ -59,6 +67,14 @@ public class UserMeService {
             imageUrl = imageUrl.substring(1);
         }
 
+        // country null 방어 + 정규화
+        String country = p.getCountry();
+        if (country == null || country.isBlank()) {
+            country = "KR"; // 기본값 정책
+        } else {
+            country = country.trim().toUpperCase();
+        }
+
         return MyPageRes.builder()
                 .name(u.getName())
                 .nickname(p.getNickname())
@@ -67,7 +83,7 @@ public class UserMeService {
                 .infoTitle(p.getInfoTitle())
                 .infoContent(p.getInfoContent())
                 .campus(p.getCampus())
-                .country(p.getCountry())
+                .country(country)
                 .email(u.getEmail())
                 .nativeLanguages(natives)
                 .learnLanguages(learns)
@@ -86,7 +102,16 @@ public class UserMeService {
         if (req.getInfoContent() != null) p.setInfoContent(req.getInfoContent());
         if (req.getMbti() != null) p.setMbti(req.getMbti());
         if (req.getCampus() != null) p.setCampus(req.getCampus());
-        if (req.getCountry() != null) p.setCountry(req.getCountry());
+
+        // country 입력 보정 (빈문자/소문자 대응)
+        if (req.getCountry() != null) {
+            String c = req.getCountry().trim();
+            if (c.isEmpty()) {
+                p.setCountry(null);
+            } else {
+                p.setCountry(c.toUpperCase());
+            }
+        }
     }
 
     @Transactional(readOnly = true)
@@ -106,34 +131,28 @@ public class UserMeService {
 
     @Transactional
     public void updateMyLanguages(Long userId, MyLanguagesUpdateReq req) {
-        // 요청 중복 제거
         Set<String> natives = new HashSet<>(Optional.ofNullable(req.getNativeCodes()).orElseGet(List::of));
         Set<String> learns  = new HashSet<>(Optional.ofNullable(req.getLearnCodes()).orElseGet(List::of));
 
-        // 1) 둘 다 비어 있으면 전체 삭제 후 종료
         if (natives.isEmpty() && learns.isEmpty()) {
             userLangRepo.deleteAllByUserId(userId);
             return;
         }
 
-        // 2) 네이티브 언어 코드 검증
         Map<String, Language> byCode = langRepo.findAllById(new ArrayList<>(natives)).stream()
                 .collect(Collectors.toMap(Language::getCode, l -> l));
         if (byCode.size() != natives.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown native language code");
         }
 
-        // 3) 학습 언어 코드 검증
         Map<String, Language> byCode2 = langRepo.findAllById(new ArrayList<>(learns)).stream()
                 .collect(Collectors.toMap(Language::getCode, l -> l));
         if (byCode2.size() != learns.size()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown learn language code");
         }
 
-        // 4) 기존 데이터 싹 삭제
         userLangRepo.deleteAllByUserId(userId);
 
-        // 5) 새로 저장
         User userRef = User.builder().id(userId).build();
 
         for (String c : natives) {
@@ -200,15 +219,9 @@ public class UserMeService {
 
         User userRef = User.builder().id(userId).build();
 
-        for (Keyword k : kp) {
-            userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
-        }
-        for (Keyword k : kh) {
-            userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
-        }
-        for (Keyword k : kt) {
-            userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
-        }
+        for (Keyword k : kp) userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
+        for (Keyword k : kh) userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
+        for (Keyword k : kt) userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
     }
 
     private void validateKeywordCount(List<String> keywords) {
@@ -227,22 +240,47 @@ public class UserMeService {
         p.setProfileImage(imageUrl);
     }
 
-    // =========================
-    // 회원탈퇴 (추가)
-    // =========================
+    /**
+     * 업로드 프로필 이미지를 삭제하고 기본(국적) 이미지로 리셋
+     * - DB: profiles.profile_image = null
+     * - 파일: EC2 디스크에서 삭제(가능하면)
+     */
+    @Transactional
+    public void deleteProfileImage(Long userId) {
+        Profile p = profileRepo.findByUserId(userId).orElseThrow();
+
+        String imageUrl = p.getProfileImage(); // 예: "uploads/profile/xxx.svg"
+        p.setProfileImage(null); // DB 먼저 리셋 (UX 안전)
+
+        if (imageUrl == null || imageUrl.isBlank()) return;
+
+        // 허용된 경로만 삭제 시도 (안전장치)
+        String prefix = "uploads/profile/";
+        if (!imageUrl.startsWith(prefix)) return;
+
+        String filename = imageUrl.substring(prefix.length());
+        if (filename.isBlank()) return;
+
+        String dir = profileUploadDir.endsWith("/") ? profileUploadDir : profileUploadDir + "/";
+
+        Path baseDir = Paths.get(dir).normalize();
+        Path filePath = baseDir.resolve(filename).normalize();
+
+        // 디렉토리 밖으로 나가는 경로 공격 방지
+        if (!filePath.startsWith(baseDir)) return;
+
+        try {
+            Files.deleteIfExists(filePath);
+        } catch (Exception ignored) {
+            // 파일 삭제 실패해도 DB는 이미 null이라 기능은 정상
+        }
+    }
+
     @Transactional
     public void withdraw(Long userId) {
-        // 존재 확인
         if (!userRepo.existsById(userId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
-
-        // (선택) 유저가 가진 언어/키워드 같은 건 FK CASCADE면 생략 가능
-        // 하지만 Bulk delete가 이미 정의돼 있어서 "깔끔하게" 정리하고 지워도 됨.
-        // userLangRepo.deleteAllByUserId(userId);
-        // userKwRepo.deleteByUserId(userId);
-
-        // 핵심: 유저 삭제 -> FK ON DELETE CASCADE로 연쇄 삭제
         userRepo.deleteById(userId);
     }
 }

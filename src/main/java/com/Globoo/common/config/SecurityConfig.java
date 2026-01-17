@@ -1,4 +1,3 @@
-// src/main/java/com/Globoo/common/config/SecurityConfig.java
 package com.Globoo.common.config;
 
 import com.Globoo.common.security.JwtAuthenticationFilter;
@@ -36,7 +35,6 @@ public class SecurityConfig {
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(JwtTokenProvider jwt,
                                                            UserRepository userRepository) {
-        // UserRepository 주입해서 필터 생성
         return new JwtAuthenticationFilter(jwt, userRepository);
     }
 
@@ -44,19 +42,25 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http,
                                                    JwtAuthenticationFilter jwtFilter) throws Exception {
         http
-                .cors(Customizer.withDefaults())              // CORS 허용
-                .csrf(csrf -> csrf.disable())                 // JWT 환경에서는 CSRF 불필요
+                .cors(Customizer.withDefaults())
+                .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()     // CORS preflight 허용
-                        .requestMatchers(SWAGGER_WHITELIST).permitAll()             // Swagger 접근 허용
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(SWAGGER_WHITELIST).permitAll()
+
+                        // 정적 업로드 파일은 인증 없이 접근 가능해야 브라우저에서 이미지 렌더링됨
+                        .requestMatchers("/uploads/**").permitAll()
+
                         .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/api/onboarding/**").permitAll()// 로그인/회원가입 허용
-                        .requestMatchers("/api/keywords/**",
+                        .requestMatchers("/api/onboarding/**").permitAll()
+                        .requestMatchers(
+                                "/api/keywords/**",
                                 "/api/languages/**",
-                                "/api/countries/**").permitAll()
-                        .requestMatchers("/ws/**").permitAll()                      // STOMP 핸드셰이크 허용
-                        .anyRequest().authenticated()                               // 나머지는 인증 필요
+                                "/api/countries/**"
+                        ).permitAll()
+                        .requestMatchers("/ws/**").permitAll()
+                        .anyRequest().authenticated()
                 )
                 .httpBasic(b -> b.disable())
                 .formLogin(f -> f.disable())
@@ -70,21 +74,22 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration c = new CorsConfiguration();
 
-        // 로컬/배포 프론트에서 백엔드로 요청 보낼 때 허용할 Origin 들
         c.setAllowedOrigins(List.of(
-                "http://localhost:3000",                            // 로컬 프론트 (React 등)
+                "http://localhost:3000",
                 "http://127.0.0.1:3000",
-                "http://localhost:5174",                            // Vite 등에서 사용하는 로컬 포트_추가 11.8
+                "http://localhost:5174",
                 "http://127.0.0.1:5174",
-                "https://instant-gretta-globoo-16d715dd.koyeb.app",  // 백엔드 Koyeb URL
+
+                // 프론트 배포 주소
                 "https://globoo-three.vercel.app"
-                // 추후 프론트가 배포되면:
-                // "https://globoo-frontend.vercel.app" 같은 실제 프론트 URL 추가
+
+                // 필요하면 프론트 커스텀 도메인 추가:
+                // "https://globoo.duckdns.org"
         ));
 
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         c.setAllowedHeaders(List.of("*"));
-        c.setAllowCredentials(true);  // JWT Authorization 헤더 사용 가능
+        c.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource src = new UrlBasedCorsConfigurationSource();
         src.registerCorsConfiguration("/**", c);

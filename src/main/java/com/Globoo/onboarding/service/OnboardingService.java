@@ -36,8 +36,12 @@ public class OnboardingService {
         Profile p = profileRepo.findByUserId(userId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.BAD_REQUEST, "Profile not found"));
 
-        // 1) 국적 저장 (코드 그대로)
-        p.setCountry(req.nationalityCode());
+        // 1) 국적 저장 (null/blank 방어 + 대문자 정규화)
+        String nat = req.nationalityCode();
+        if (nat == null || nat.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "nationalityCode is required");
+        }
+        p.setCountry(nat.trim().toUpperCase());
 
         // 2) 언어 코드 검증
         Language nativeLang = langRepo.findById(req.nativeLanguageCode())

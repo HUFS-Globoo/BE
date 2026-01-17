@@ -122,6 +122,14 @@ public class UserMeController {
         }
     }
 
+    @DeleteMapping("/profile-image")
+    @Operation(summary = "프로필 이미지 삭제(기본 썸네일로 리셋)")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteProfileImage() {
+        Long uid = SecurityUtils.requiredUserId();
+        svc.deleteProfileImage(uid);
+    }
+
     // =========================
     //  마이페이지 - 내가 작성한 스터디 글 / 댓글
     // =========================

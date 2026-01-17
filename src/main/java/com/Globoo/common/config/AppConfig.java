@@ -12,7 +12,7 @@ public class AppConfig {
         return new RestTemplate();
     }
 
-    // ✅ PartnerProfilePort 기본 구현 (매칭 시 상대방 프로필 카드 표시용)
+    // PartnerProfilePort 기본 구현 (매칭 시 상대방 프로필 카드 표시용)
    /* @Bean
    public MatchingService.PartnerProfilePort partnerProfilePort() {
     return (Long userId) -> new MatchingService.PartnerProfile(

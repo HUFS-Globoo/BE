@@ -7,3 +7,6 @@ public record OnboardingStep3Req(
         @NotBlank String nativeLanguageCode,
         @NotBlank String preferredLanguageCode
 ) {}
+//        @NotBlank String nativeLanguageCode,
+//        @NotBlank String preferredLanguageCode,
+//        @NotBlank String nationalityCode,
