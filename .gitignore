@@ -61,3 +61,6 @@ replay_pid*
 # OS / 기타 불필요 파일
 .DS_Store
 Thumbs.db
+
+# Secret Config
+src/main/resources/application-secret.yml

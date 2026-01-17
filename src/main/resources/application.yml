@@ -39,4 +39,17 @@ globoo:
     profile-dir: /home/ubuntu/app/uploads/profile/
     # 주의: /app/... 은 권한 문제 생길 수 있어 /home/ubuntu/... 권장
 
+  # 번역 API 관련 내용 (새로 추가됨)
+  translation:
+    deepl:
+      url: "https://api-free.deepl.com/v2/translate"
+    libre:
+      url: "http://localhost:5000/translate"
+
 # 배포 테스트용 주석
+
+server:
+  port: 8080
+  forward-headers-strategy: framework # Nginx에서 보낸 X-Forwarded-* 헤더를 해석함
+  tomcat:
+    use-relative-redirects: true
