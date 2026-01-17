@@ -46,20 +46,33 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // CORS preflight 허용
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // Swagger 접근 허용
                         .requestMatchers(SWAGGER_WHITELIST).permitAll()
 
-                        // 정적 업로드 파일은 인증 없이 접근 가능해야 브라우저에서 이미지 렌더링됨
+                        // 정적 업로드 파일 공개 (프로필 이미지 렌더링용)
                         .requestMatchers("/uploads/**").permitAll()
 
+                        // (선택) 루트/정적 인덱스 페이지가 있으면 공개
+                        .requestMatchers("/", "/index.html").permitAll()
+
+                        // 인증/온보딩 공개
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/api/onboarding/**").permitAll()
+
+                        // 공용 조회 API 공개
                         .requestMatchers(
                                 "/api/keywords/**",
                                 "/api/languages/**",
                                 "/api/countries/**"
                         ).permitAll()
+
+                        // STOMP 핸드셰이크 허용
                         .requestMatchers("/ws/**").permitAll()
+
+                        // 그 외는 인증 필요
                         .anyRequest().authenticated()
                 )
                 .httpBasic(b -> b.disable())
@@ -81,10 +94,13 @@ public class SecurityConfig {
                 "http://127.0.0.1:5174",
 
                 // 프론트 배포 주소
-                "https://globoo-three.vercel.app"
+                "https://globoo-three.vercel.app",
 
-                // 필요하면 프론트 커스텀 도메인 추가:
-                // "https://globoo.duckdns.org"
+                // 커스텀 도메인(프론트가 이 도메인에서 호출하는 경우 대비)
+                "https://globoo.duckdns.org"
+
+                // 백엔드 자기 자신(koyeb)은 origin으로 의미가 거의 없어서 제거해도 무방
+                // "https://instant-gretta-globoo-16d715dd.koyeb.app"
         ));
 
         c.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
