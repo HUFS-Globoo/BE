@@ -99,7 +99,8 @@ public class OnboardingService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown TOPIC keywords");
 
         // 4) 기존 매핑 삭제 후 저장
-        userKwRepo.deleteByUserId(userId);
+        userKwRepo.deleteAllByUser_Id(userId);
+
 
         User userRef = User.builder().id(userId).build();
 
