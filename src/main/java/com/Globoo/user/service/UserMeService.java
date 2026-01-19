@@ -47,7 +47,9 @@ public class UserMeService {
                 .map(x -> x.getLanguage().getCode())
                 .toList();
 
-        List<UserKeyword> uks = userKwRepo.findAllByUserId(userId);
+        // ✅ 수정: findAllByUserId -> findAllByUser_Id
+        List<UserKeyword> uks = userKwRepo.findAllByUser_Id(userId);
+
         List<String> personality = uks.stream()
                 .filter(k -> k.getKeyword().getCategory() == Keyword.Category.PERSONALITY)
                 .map(k -> k.getKeyword().getName())
@@ -173,7 +175,9 @@ public class UserMeService {
 
     @Transactional(readOnly = true)
     public MyKeywordsRes getMyKeywords(Long userId) {
-        List<UserKeyword> uks = userKwRepo.findAllByUserId(userId);
+        // ✅ 수정: findAllByUserId -> findAllByUser_Id
+        List<UserKeyword> uks = userKwRepo.findAllByUser_Id(userId);
+
         return MyKeywordsRes.builder()
                 .personality(uks.stream()
                         .filter(k -> k.getKeyword().getCategory() == Keyword.Category.PERSONALITY)
@@ -215,7 +219,8 @@ public class UserMeService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown TOPIC keywords");
         }
 
-        userKwRepo.deleteByUserId(userId);
+        // ✅ 수정: deleteByUserId -> deleteAllByUser_Id
+        userKwRepo.deleteAllByUser_Id(userId);
 
         User userRef = User.builder().id(userId).build();
 
