@@ -28,6 +28,8 @@ public class MessageResDto {
     public static class UserSummaryDto {
         private Long id;
         private String username;
+        private String nickname;
+        private String nationality;
         private String profileImageUrl;
     }
 
