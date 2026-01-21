@@ -1,5 +1,6 @@
 package com.Globoo.study.service;
 
+import com.Globoo.study.DTO.StudyApplicantRes;
 import com.Globoo.study.domain.StudyMember;
 import com.Globoo.study.domain.StudyPost;
 import com.Globoo.study.repository.StudyMemberRepository;
@@ -8,6 +9,8 @@ import com.Globoo.user.domain.User;
 import com.Globoo.user.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
 
 @Service
 @Transactional
@@ -24,6 +27,14 @@ public class StudyMemberService {
         this.userRepository = userRepository;
         this.studyMemberRepository = studyMemberRepository;
     }
+
+    @Transactional(readOnly = true)
+    public List<StudyApplicantRes> getApplicants(Long postId) {
+        return studyMemberRepository.findAllByPostIdWithUserProfile(postId).stream()
+                .map(com.Globoo.study.DTO.StudyApplicantRes::from)
+                .toList();
+    }
+
 
     /**
      * 스터디 가입 (POST /api/studies/{postId}/join)

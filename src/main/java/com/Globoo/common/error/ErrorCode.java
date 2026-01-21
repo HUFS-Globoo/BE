@@ -15,6 +15,9 @@ public enum ErrorCode {
     // Auth (기존)
     UNAUTHORIZED(HttpStatus.UNAUTHORIZED, "인증되지 않은 사용자입니다."),
     FORBIDDEN_ACCESS(HttpStatus.FORBIDDEN, "접근 권한이 없습니다."),
+    // Auth - Verification / Signup
+    CAMPUS_REQUIRED(HttpStatus.BAD_REQUEST, "캠퍼스 선택은 필수입니다."),
+
 
     // Auth - Signup / Login / Verification (✅ 추가)
     EMAIL_ALREADY_EXISTS(HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다."),

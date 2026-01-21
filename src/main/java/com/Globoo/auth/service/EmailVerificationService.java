@@ -106,6 +106,11 @@ public class EmailVerificationService {
      */
     @Transactional
     public Long verifyCodeAndCreateUser(String email, String code, Campus campus) {
+        // ✅ 2차 방어: 컨트롤러/DTO 검증 누락 or 내부 호출 대비
+        if (campus == null) {
+            throw new AuthException(ErrorCode.CAMPUS_REQUIRED);
+        }
+
         EmailVerificationToken v = repo.findTopByEmailOrderByCreatedAtDesc(email)
                 .orElseThrow(() -> new AuthException(ErrorCode.VERIFICATION_REQUIRED));
 
