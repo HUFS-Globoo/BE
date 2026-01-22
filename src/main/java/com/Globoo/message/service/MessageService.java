@@ -24,9 +24,14 @@ public class MessageService {
 
     // dto 변환 유틸
     private MessageResDto.UserSummaryDto toUserSummary(User user) {
+        // 프로필이 있는지 확인하고, 있으면 해당 값으로 없으면 기본값으로 설정
+        String nickname = (user.getProfile() != null) ? user.getProfile().getNickname() : user.getUsername();
+        String nationality = (user.getProfile() != null) ? user.getProfile().getCountry() : "Unknown";
         return MessageResDto.UserSummaryDto.builder()
                 .id(user.getId())
                 .username(user.getUsername())
+                .nickname(nickname)
+                .nationality(nationality)
                 .profileImageUrl(user.getProfileImageUrl())
                 .build();
     }
