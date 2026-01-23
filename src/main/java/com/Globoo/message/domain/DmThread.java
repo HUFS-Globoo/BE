@@ -4,7 +4,9 @@ import com.Globoo.user.domain.User;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Entity
@@ -31,6 +33,7 @@ public class DmThread {
     @CreationTimestamp
     private LocalDateTime createdAt;
 
+    @Builder.Default
     @OneToMany(mappedBy = "thread", cascade = CascadeType.ALL, orphanRemoval = true)
-    private List<DirectMessage> messages;
+    private List<DirectMessage> messages = new ArrayList<>();
 }
