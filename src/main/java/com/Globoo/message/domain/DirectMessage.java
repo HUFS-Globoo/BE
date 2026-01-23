@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+
 import java.time.LocalDateTime;
 
 @Entity
@@ -36,6 +37,8 @@ public class DirectMessage {
     @Column(nullable = false)
     private String content;
 
+    @Builder.Default
+    @Column(nullable = false)
     private Boolean isRead = false;
 
     @CreationTimestamp
