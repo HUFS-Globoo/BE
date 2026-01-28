@@ -14,6 +14,8 @@ public interface MatchQueueRepository extends JpaRepository<MatchQueue, Long> {
 
     boolean existsByUserIdAndActiveTrue(Long userId);
 
+    List<MatchQueue> findAllByActiveTrue();
+
     Optional<MatchQueue> findByUserIdAndActiveTrue(Long userId);
 
     @Query("SELECT mq FROM MatchQueue mq WHERE mq.active = true AND mq.userId != :userId ORDER BY mq.enqueuedAt ASC")
