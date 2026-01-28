@@ -245,6 +245,66 @@ public class MatchingService {
         });
     }
 
+    /**
+     * 5초마다 대기열을 확인하여 점수가 충족된 유저들끼리 자동으로 매칭시킵니다.
+     */
+    @Scheduled(fixedRate = 5000)
+    @Transactional
+    public void autoMatchingTask() {
+        List<MatchQueue> waitingUsers = queueRepo.findAllByActiveTrue();
+        if (waitingUsers.size() < 2) return;
+
+        Set<Long> matchedInThisCycle = new HashSet<>();
+
+        for (int i = 0; i < waitingUsers.size(); i++) {
+            MatchQueue a = waitingUsers.get(i);
+            if (matchedInThisCycle.contains(a.getUserId())) continue;
+
+            for (int j = i + 1; j < waitingUsers.size(); j++) {
+                MatchQueue b = waitingUsers.get(j);
+                if (matchedInThisCycle.contains(b.getUserId())) continue;
+
+                // 기본 점수 계산
+                int baseScore = calculateMatchScore(a, b);
+
+                // 대기 시간 보너스 계산
+                long secondsA = Duration.between(a.getEnqueuedAt(), LocalDateTime.now()).getSeconds();
+                long secondsB = Duration.between(b.getEnqueuedAt(), LocalDateTime.now()).getSeconds();
+                int timeBonus = (int) (Math.max(secondsA, secondsB) / 10) * WAIT_TIME_BONUS_PER_10SEC;
+
+                // 기준 점수(70점) 충족 시 매칭 성사
+                if (baseScore + timeBonus >= SCORE_THRESHOLD) {
+                    processAutoMatchSuccess(a, b);
+                    matchedInThisCycle.add(a.getUserId());
+                    matchedInThisCycle.add(b.getUserId());
+                    break;
+                }
+            }
+        }
+    }
+
+    /**
+     * 자동 매칭 성공 시 데이터 처리 및 알림 발송
+     */
+    private void processAutoMatchSuccess(MatchQueue a, MatchQueue b) {
+        a.setActive(false);
+        b.setActive(false);
+        queueRepo.saveAll(List.of(a, b));
+
+        MatchPair match = MatchPair.builder()
+                .userAId(Math.min(a.getUserId(), b.getUserId()))
+                .userBId(Math.max(a.getUserId(), b.getUserId()))
+                .status(MatchStatus.FOUND)
+                .matchedAt(LocalDateTime.now())
+                .matchedBy("auto_matching_scheduler")
+                .build();
+        pairRepo.save(match);
+
+        // 매칭 발견 이벤트 발행 (이걸 MatchEventListener가 받아서 소켓을 쏩니다)
+        sendFoundNotification(match);
+        log.info("[Auto-Match] 유저 {}와 {} 매칭 성사 (매칭ID: {})", a.getUserId(), b.getUserId(), match.getId());
+    }
+
     private void sendFoundNotification(MatchPair match) {
         ProfileCardRes profileA = profileService.getProfileCard(match.getUserAId());
         ProfileCardRes profileB = profileService.getProfileCard(match.getUserBId());
