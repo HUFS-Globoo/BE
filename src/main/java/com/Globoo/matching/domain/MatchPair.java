@@ -20,10 +20,10 @@ public class MatchPair {
     @GeneratedValue
     private UUID id;
 
-    @Column(nullable = false)
+    @Column(name = "user_a_id", nullable = false)
     private Long userAId;
 
-    @Column(nullable = false)
+    @Column(name = "user_b_id", nullable = false)
     private Long userBId;
 
     @Enumerated(EnumType.STRING)
@@ -35,11 +35,11 @@ public class MatchPair {
      * Builder 사용 시에도 false가 유지되도록 @Builder.Default 적용
      */
     @Builder.Default
-    @Column(nullable = false)
+    @Column(name = "accepted_a", nullable = false)
     private Boolean acceptedA = false;
 
     @Builder.Default
-    @Column(nullable = false)
+    @Column(name = "accepted_b", nullable = false)
     private Boolean acceptedB = false;
 
     /** ChatRoom PK와 타입 일치 (Long) */
@@ -48,4 +48,7 @@ public class MatchPair {
 
     private LocalDateTime matchedAt;
     private String matchedBy;
+
+
+
 }
