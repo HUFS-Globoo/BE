@@ -53,5 +53,13 @@ public interface MatchPairRepository extends JpaRepository<MatchPair, UUID> {
     @Query("SELECT m FROM MatchPair m WHERE m.id = :id")
     Optional<MatchPair> findByIdForUpdate(@Param("id") UUID id);
 
+    @Query("""
+    SELECT m FROM MatchPair m
+    WHERE m.chatRoomId = :roomId
+    ORDER BY m.matchedAt DESC
+    """)
+    Optional<MatchPair> findLatestByChatRoomId(@Param("roomId") Long roomId);
+
+
     List<MatchPair> findByStatusAndMatchedAtBefore(MatchStatus status, LocalDateTime threshold);
 }
