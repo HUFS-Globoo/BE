@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.NoSuchElementException;
+
 @Slf4j
 @RestControllerAdvice(annotations = RestController.class)
 public class GlobalExceptionHandler {
@@ -35,13 +37,32 @@ public class GlobalExceptionHandler {
         String field = (fe == null) ? "unknown" : fe.getField();
         String msg = (fe == null) ? "입력값이 올바르지 않습니다." : fe.getDefaultMessage();
 
-        // 로그에 필드 + 메시지 찍히게
         log.warn("Validation failed: field={}, message={}", field, msg);
 
-        // ApiResponse 구조에 맞춰 "구체 메시지"를 내려줌
         return ResponseEntity
                 .status(ErrorCode.INVALID_REQUEST.getStatus())
                 .body(ApiResponse.onFailure(ErrorCode.INVALID_REQUEST.name(), msg));
+    }
+
+    /**
+     * 매칭/채팅 플로우에서 cleanup 등으로 이미 삭제된 matchId로 접근할 때 자주 발생.
+     * 기존에는 500으로 떨어져 프론트가 처리 불가 → 404로 내려 UX 처리 가능하게 함.
+     */
+    @ExceptionHandler(NoSuchElementException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoSuchElement(NoSuchElementException ex) {
+        log.warn("NoSuchElementException occurred: {}", ex.getMessage());
+        return ResponseEntity
+                .status(404)
+                .body(ApiResponse.onFailure("MATCH_NOT_FOUND", "이미 만료되었거나 삭제된 매칭입니다. 다시 매칭해주세요."));
+    }
+
+    /** 참가자 아닌 사람이 요청했을 때 등 (accept/skip 호출 방어) */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiResponse<Void>> handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("IllegalArgumentException occurred: {}", ex.getMessage());
+        return ResponseEntity
+                .status(ErrorCode.INVALID_REQUEST.getStatus())
+                .body(ApiResponse.onFailure(ErrorCode.INVALID_REQUEST.name(), ex.getMessage()));
     }
 
     /** 처리하지 못한 나머지 모든 예외 (500) */
