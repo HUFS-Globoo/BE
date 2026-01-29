@@ -11,7 +11,6 @@ import lombok.NoArgsConstructor;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "chat_message")
 public class ChatMessage extends BaseTimeEntity {
 
     @Id
@@ -24,7 +23,7 @@ public class ChatMessage extends BaseTimeEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "sender_id", nullable = false)
-    private User sender;
+    private User sender; // 보낸 사람
 
     @Column(nullable = false, length = 1000)
     private String message;
