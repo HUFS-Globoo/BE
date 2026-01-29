@@ -11,7 +11,6 @@ import lombok.NoArgsConstructor;
 @Entity
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-@Table(name = "chat_participant")
 public class ChatParticipant extends BaseTimeEntity {
 
     @Id
@@ -20,13 +19,12 @@ public class ChatParticipant extends BaseTimeEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    private User user; // 참여자
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "chat_room_id", nullable = false)
-    private ChatRoom chatRoom;
+    private ChatRoom chatRoom; // 참여한 채팅방
 
-    @Column(name = "last_read_message_id")
     private Long lastReadMessageId;
 
     @Builder
@@ -41,3 +39,4 @@ public class ChatParticipant extends BaseTimeEntity {
         }
     }
 }
+
