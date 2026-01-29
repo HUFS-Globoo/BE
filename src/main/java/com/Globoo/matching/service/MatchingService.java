@@ -175,10 +175,19 @@ public class MatchingService {
 
     @Transactional
     public Map<String, Object> accept(UUID matchId, Long userId) {
-        MatchPair match = pairRepo.findByIdForUpdate(matchId).orElseThrow();
+        MatchPair match = pairRepo.findByIdForUpdate(matchId)
+                .orElseThrow(() -> new NoSuchElementException("MatchPair not found: " + matchId));
+
+        // 참여자 검증 (참여자 아닌 사람이 호출하면 데이터 꼬임 방지)
+        if (!Objects.equals(match.getUserAId(), userId) && !Objects.equals(match.getUserBId(), userId)) {
+            throw new IllegalArgumentException("User is not a participant of this match. userId=" + userId);
+        }
 
         if (Objects.equals(match.getUserAId(), userId)) match.setAcceptedA(true);
         if (Objects.equals(match.getUserBId(), userId)) match.setAcceptedB(true);
+
+        // 핵심 수정: accept 액션이 있으면 matchedAt을 갱신해서 cleanup(20초)로부터 보호
+        match.setMatchedAt(LocalDateTime.now());
 
         if (Boolean.TRUE.equals(match.getAcceptedA()) && Boolean.TRUE.equals(match.getAcceptedB())) {
             match.setStatus(MatchStatus.ACCEPTED_BOTH);
@@ -207,7 +216,7 @@ public class MatchingService {
 
     /**
      * 응답 없는 매칭 정리 (FOUND, ACCEPTED_ONE)
-     * - DB status 컬럼이 varchar이므로 native enum cast 쓰지 말고 JPA로 처리
+     * - 기존 정책 유지: 20초
      */
     @Scheduled(fixedRate = 10000)
     @Transactional
@@ -339,9 +348,22 @@ public class MatchingService {
 
     @Transactional
     public Map<String, Object> skipAndRequeue(UUID matchId, Long userId) {
-        MatchPair m = pairRepo.findById(matchId).orElseThrow();
+        MatchPair m = pairRepo.findById(matchId).orElse(null);
+
+        // cleanup 등으로 이미 삭제된 matchId면 예외 대신 재매칭으로 자연스럽게 처리
+        if (m == null) {
+            return enterQueue(userId);
+        }
+
+        // 참여자 검증
+        if (!Objects.equals(m.getUserAId(), userId) && !Objects.equals(m.getUserBId(), userId)) {
+            throw new IllegalArgumentException("User is not a participant of this match. userId=" + userId);
+        }
+
         m.setStatus(MatchStatus.SKIPPED);
+        m.setMatchedAt(LocalDateTime.now()); // skip도 액션이므로 시간 갱신(권장)
         pairRepo.save(m);
+
         return enterQueue(userId);
     }
 }
