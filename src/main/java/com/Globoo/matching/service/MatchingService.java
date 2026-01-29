@@ -207,16 +207,16 @@ public class MatchingService {
 
     /**
      * 응답 없는 매칭 정리 (FOUND, ACCEPTED_ONE)
-     * Postgres enum(match_status)와 Hibernate 바인딩 충돌을 피하기 위해 native query 사용
+     * - DB status 컬럼이 varchar이므로 native enum cast 쓰지 말고 JPA로 처리
      */
     @Scheduled(fixedRate = 10000)
     @Transactional
     public void cleanupAbandonedMatches() {
         LocalDateTime threshold = LocalDateTime.now().minusSeconds(20);
 
-        String[] staleStatuses = {"FOUND", "ACCEPTED_ONE"};
+        List<MatchStatus> staleStatuses = List.of(MatchStatus.FOUND, MatchStatus.ACCEPTED_ONE);
 
-        pairRepo.findStaleMatchesNative(staleStatuses, threshold).forEach(m -> {
+        pairRepo.findByStatusInAndMatchedAtBefore(staleStatuses, threshold).forEach(m -> {
             log.info("[Cleanup] 매칭 {} 파기 - 응답 시간 초과", m.getId());
 
             if (Boolean.TRUE.equals(m.getAcceptedA())) reactivateQueue(m.getUserAId());
@@ -247,11 +247,6 @@ public class MatchingService {
         queueRepo.saveAll(expired);
     }
 
-    /**
-     * 일회성 채팅 종료 시 매칭/채팅방 정리
-     * - match_pair: status=NONE, chat_room_id=null
-     * - chat_room: delete (DDL의 ON DELETE CASCADE로 participant/message 정리)
-     */
     @Async
     @EventListener
     @Transactional
@@ -268,9 +263,6 @@ public class MatchingService {
         chatService.deleteRoom(roomId);
     }
 
-    /**
-     * 5초마다 대기열을 확인하여 점수가 충족된 유저들끼리 자동 매칭
-     */
     @Scheduled(fixedRate = 5000)
     @Transactional
     public void autoMatchingTask() {

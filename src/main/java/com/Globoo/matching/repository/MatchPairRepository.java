@@ -47,21 +47,11 @@ public interface MatchPairRepository extends JpaRepository<MatchPair, UUID> {
     );
 
     /**
-     * 응답 없는(FOUND, ACCEPTED_ONE) 오래된 매칭 조회
-     *
-     * Postgres enum(match_status) 컬럼과 Hibernate 바인딩(varchar) 충돌을 피하기 위해
-     * native query + enum array cast로 처리한다.
+     * 응답 없는(FOUND, ACCEPTED_ONE 등) 오래된 매칭 조회
+     * - DB status 컬럼이 varchar이므로 native + enum cast(match_status[]) 쓰면 오류가 남.
+     * - JPQL/Derived Query로 안전하게 처리.
      */
-    @Query(value = """
-        SELECT *
-        FROM match_pair
-        WHERE status = ANY (CAST(:statuses AS match_status[]))
-          AND matched_at < :threshold
-        """, nativeQuery = true)
-    List<MatchPair> findStaleMatchesNative(
-            @Param("statuses") String[] statuses,
-            @Param("threshold") LocalDateTime threshold
-    );
+    List<MatchPair> findByStatusInAndMatchedAtBefore(Collection<MatchStatus> statuses, LocalDateTime threshold);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT m FROM MatchPair m WHERE m.id = :id")
@@ -74,5 +64,6 @@ public interface MatchPairRepository extends JpaRepository<MatchPair, UUID> {
         """)
     Optional<MatchPair> findLatestByChatRoomId(@Param("roomId") Long roomId);
 
+    // 기존 메서드 유지 (단일 status 조회)
     List<MatchPair> findByStatusAndMatchedAtBefore(MatchStatus status, LocalDateTime threshold);
 }
