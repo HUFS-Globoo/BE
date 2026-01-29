@@ -3,6 +3,7 @@ package com.Globoo.common.security;
 import com.Globoo.user.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -82,6 +83,23 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String queryToken = request.getParameter("token");
         if (StringUtils.hasText(queryToken)) {
             return queryToken;
+        }
+
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie c : cookies) {
+                if (c == null) continue;
+                String name = c.getName();
+                if (!StringUtils.hasText(name)) continue;
+
+                // 프론트/서버 구현에 따라 쿠키 이름이 다를 수 있어 우선 2개 지원
+                if ("accessToken".equals(name) || "token".equals(name)) {
+                    String value = c.getValue();
+                    if (StringUtils.hasText(value)) {
+                        return value;
+                    }
+                }
+            }
         }
 
         return null;

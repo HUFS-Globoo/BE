@@ -1,6 +1,8 @@
 package com.Globoo.common.config;
 
 import com.Globoo.chat.handler.ChatHandler;
+import com.Globoo.common.security.websocket.JwtHandshakeHandler;
+import com.Globoo.common.security.websocket.JwtHandshakeInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.Message;
@@ -22,6 +24,8 @@ import java.util.List;
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer, WebSocketConfigurer {
 
     private final ChatHandler chatHandler;
+    private final JwtHandshakeInterceptor jwtHandshakeInterceptor;
+    private final JwtHandshakeHandler jwtHandshakeHandler;
 
     /**
      * 순수 WebSocket 엔드포인트 (ChatHandler)
@@ -31,6 +35,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer, WebSoc
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(chatHandler, "/ws/chat")
+                .addInterceptors(jwtHandshakeInterceptor)
+                .setHandshakeHandler(jwtHandshakeHandler)
                 .setAllowedOrigins("*");
     }
 
