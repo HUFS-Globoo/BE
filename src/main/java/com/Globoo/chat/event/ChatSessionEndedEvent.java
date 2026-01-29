@@ -5,10 +5,11 @@ import org.springframework.context.ApplicationEvent;
 
 @Getter
 public class ChatSessionEndedEvent extends ApplicationEvent {
-    private final Long userId;
 
-    public ChatSessionEndedEvent(Object source, Long userId) {
+    private final Long roomId;
+
+    public ChatSessionEndedEvent(Object source, Long roomId) {
         super(source);
-        this.userId = userId;
+        this.roomId = roomId;
     }
 }

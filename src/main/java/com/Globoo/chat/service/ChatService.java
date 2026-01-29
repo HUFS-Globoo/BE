@@ -11,6 +11,7 @@ import com.Globoo.common.error.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -85,8 +86,10 @@ public class ChatService {
                 .sender(sender)
                 .message(dto.getMessage())
                 .build();
+
         ChatMessage savedMessage = chatMessageRepository.save(chatMessage);
         chatRoom.updateLastMessage(savedMessage.getMessage(), savedMessage.getCreatedAt());
+
         return ChatMessageSendResDto.from(savedMessage);
     }
 
@@ -99,6 +102,16 @@ public class ChatService {
                 .orElseThrow(() -> new EntityNotFoundException(ErrorCode.NOT_CHAT_PARTICIPANT));
 
         participant.updateLastReadMessageId(lastReadMessageId);
+    }
+
+    /**
+     * ✅ 일회성 채팅 종료 시 방 삭제용 (chat_participant/chat_message는 DDL의 ON DELETE CASCADE로 같이 삭제됨)
+     */
+    @Transactional
+    public void deleteRoom(Long roomId) {
+        if (roomId == null) return;
+        if (!chatRoomRepository.existsById(roomId)) return;
+        chatRoomRepository.deleteById(roomId);
     }
 
     private User findUserById(Long userId) {
