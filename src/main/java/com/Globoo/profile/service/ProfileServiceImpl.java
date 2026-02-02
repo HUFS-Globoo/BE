@@ -19,7 +19,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -48,12 +47,12 @@ public class ProfileServiceImpl implements ProfileService {
                 .map(l -> new LanguageDto(l.getLanguage().getCode(), l.getLanguage().getName()))
                 .toList();
 
-        //  KeywordDto 생성 시 category 인자 추가 및 String 변환 처리
+        // KeywordDto 생성 시 category 인자 추가 및 String 변환 처리
         var keywordDtos = u.getUserKeywords().stream()
                 .map(UserKeyword::getKeyword)
                 .map(k -> new KeywordDto(
                         k.getId(),
-                        k.getCategory() != null ? k.getCategory().toString() : null, // Category -> String 변환
+                        k.getCategory() != null ? k.getCategory().toString() : null,
                         k.getName()
                 ))
                 .toList();
@@ -89,21 +88,26 @@ public class ProfileServiceImpl implements ProfileService {
     }
 
     @Override
-    public Page<ProfileCardRes> search(Campus campus, String nativeLang, String learnLang,
-                                       List<Long> keywordIds, Pageable pageable) {
-
+    public Page<ProfileCardRes> search(
+            Campus campus,
+            String nativeLang,
+            String learnLang,
+            List<Long> keywordIds,
+            Pageable pageable
+    ) {
         Specification<Profile> spec = Specification.where(ProfileSpecs.activeUser())
                 .and(ProfileSpecs.eqCampus(campus))
                 .and(ProfileSpecs.hasNativeLang(nativeLang))
                 .and(ProfileSpecs.hasLearnLang(learnLang))
                 .and(ProfileSpecs.hasAnyKeywordIds(keywordIds));
 
-        // fetch join으로 모든 연관 데이터 한 번에 로드
-        Page<Profile> page = repo.findAllWithRelations(campus, pageable);
+        // ✅ 핵심 수정: spec을 실제 조회에 적용한다.
+        // ✅ Repository에서 EntityGraph로 연관 로딩도 같이 걸어놔서 N+1을 줄인다.
+        Page<Profile> page = repo.findAll(spec, pageable);
 
         List<ProfileCardRes> content = page.getContent().stream()
                 .map(this::convertProfileToCardDto)
-                .collect(Collectors.toList());
+                .toList();
 
         return new PageImpl<>(content, pageable, page.getTotalElements());
     }
@@ -111,12 +115,14 @@ public class ProfileServiceImpl implements ProfileService {
     @Override
     public ProfileCardRes getProfileCard(Long userId) {
         Profile p = repo.findByUserIdWithUser(userId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "profile not found for user: " + userId));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "profile not found for user: " + userId
+                ));
 
         return convertProfileToCardDto(p);
     }
 
-    /**  공통 변환 메서드 (KeywordDto 파라미터 수정 반영) */
+    /** 공통 변환 메서드 */
     private ProfileCardRes convertProfileToCardDto(Profile p) {
         User u = p.getUser();
 
@@ -131,7 +137,6 @@ public class ProfileServiceImpl implements ProfileService {
                 .map(l -> new LanguageDto(l.getLanguage().getCode(), l.getLanguage().getName()))
                 .toList();
 
-        //  KeywordDto 생성 시 3개의 인자(id, category, name)를 전달하도록 수정
         var keywordDtos = u.getUserKeywords().stream()
                 .map(UserKeyword::getKeyword)
                 .map(k -> new KeywordDto(
@@ -146,7 +151,6 @@ public class ProfileServiceImpl implements ProfileService {
             profileImage = profileImage.substring(1);
         }
 
-        //  ProfileCardRes(record) 생성자에 맞춰 데이터 반환
         return new ProfileCardRes(
                 u.getId(),
                 p.getNickname(),
