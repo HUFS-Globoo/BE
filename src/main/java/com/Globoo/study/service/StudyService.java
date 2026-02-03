@@ -5,17 +5,18 @@ import com.Globoo.study.domain.StudyMember;
 import com.Globoo.study.domain.StudyPost;
 import com.Globoo.study.repository.StudyMemberRepository;
 import com.Globoo.study.repository.StudyPostRepository;
+import com.Globoo.user.domain.Language;
 import com.Globoo.user.domain.User;
+import com.Globoo.user.repository.LanguageRepository;
 import com.Globoo.user.repository.UserRepository;
+import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -25,26 +26,55 @@ public class StudyService {
     private final StudyPostRepository studyPostRepository;
     private final UserRepository userRepository;
     private final StudyMemberRepository studyMemberRepository;
+    private final LanguageRepository languageRepository;
+
+    // ✅ 한글 라벨 -> code 매핑 (프론트가 "아랍어" 같은 라벨로 보내는 상황 대응)
+    private static final Map<String, String> KO_LABEL_TO_CODE = Map.ofEntries(
+            Map.entry("한국어", "ko"),
+            Map.entry("영어", "en"),
+            Map.entry("중국어", "zh"),
+            Map.entry("일본어", "ja"),
+            Map.entry("프랑스어", "fr"),
+            Map.entry("독일어", "de"),
+            Map.entry("스페인어", "es"),
+            Map.entry("아랍어", "ar"),
+            Map.entry("이탈리아어", "it"),
+            Map.entry("러시아어", "ru"),
+            Map.entry("폴란드어", "pl"),
+            Map.entry("체코어", "cs"),
+            Map.entry("슬로바키아어", "sk"),
+            Map.entry("루마니아어", "ro"),
+            Map.entry("불가리아어", "bg"),
+            Map.entry("베트남어", "vi"),
+            Map.entry("태국어", "th"),
+            Map.entry("인도네시아어", "id"),
+            Map.entry("말레이어", "ms"),
+            Map.entry("몽골어", "mn"),
+            Map.entry("힌디어", "hi"),
+            Map.entry("페르시아어", "fa"),
+            Map.entry("터키어", "tr"),
+            Map.entry("히브리어", "he"),
+            Map.entry("카자흐어", "kk"),
+            Map.entry("우즈벡어", "uz")
+    );
 
     public StudyService(StudyPostRepository studyPostRepository,
                         UserRepository userRepository,
-                        StudyMemberRepository studyMemberRepository) {
+                        StudyMemberRepository studyMemberRepository,
+                        LanguageRepository languageRepository) {
         this.studyPostRepository = studyPostRepository;
         this.userRepository = userRepository;
         this.studyMemberRepository = studyMemberRepository;
+        this.languageRepository = languageRepository;
     }
 
-    // =========================
-    // 목록 조회 (필터 포함)
-    // =========================
     @Transactional(readOnly = true)
-    // ✅ (수정) Controller와 파라미터 일치 (min/max Capacity 제거)
     public List<StudyPostDto.Response> getStudyPosts(
             String status, List<String> campus, List<String> language
     ) {
         final String normStatus = normalizeStatus(status);
         final List<String> normCampuses = normalizeCampusList(campus);
-        final List<String> normLangs = normalizeLanguageList(language);
+        final List<String> normLangCodes = normalizeLanguageCodes(language);
 
         Specification<StudyPost> spec = (root, query, cb) -> {
             if (query.getResultType() != Long.class && query.getResultType() != long.class) {
@@ -55,11 +85,20 @@ public class StudyService {
 
             Predicate predicate = cb.conjunction();
 
-            if (normStatus != null)  predicate = cb.and(predicate, cb.equal(root.get("status"), normStatus));
-            if (normCampuses != null && !normCampuses.isEmpty())  predicate = cb.and(predicate, root.join("campuses").in(normCampuses));
-            if (normLangs != null && !normLangs.isEmpty())    predicate = cb.and(predicate, root.join("languages").in(normLangs));
+            if (normStatus != null) {
+                predicate = cb.and(predicate, cb.equal(root.get("status"), normStatus));
+            }
 
-            // ✅ (삭제) capacity 필터 로직 제거됨
+            if (normCampuses != null && !normCampuses.isEmpty()) {
+                Join<StudyPost, String> cJoin = root.join("campuses", JoinType.INNER);
+                predicate = cb.and(predicate, cJoin.in(normCampuses));
+            }
+
+            // languages에는 code가 저장되어 있으므로 code 리스트로 필터링
+            if (normLangCodes != null && !normLangCodes.isEmpty()) {
+                Join<StudyPost, String> lJoin = root.join("languages", JoinType.INNER);
+                predicate = cb.and(predicate, lJoin.in(normLangCodes));
+            }
 
             return predicate;
         };
@@ -69,9 +108,6 @@ public class StudyService {
                 .toList();
     }
 
-    // =========================
-    // 마이페이지 - 내가 쓴 스터디 글 목록
-    // =========================
     @Transactional(readOnly = true)
     public List<StudyPostDto.Response> getMyStudyPosts(Long currentUserId) {
         return studyPostRepository.findAllByUserIdOrderByCreatedAtDesc(currentUserId)
@@ -80,9 +116,6 @@ public class StudyService {
                 .toList();
     }
 
-    // =========================
-    // 단일 조회
-    // =========================
     @Transactional(readOnly = true)
     public StudyPostDto.Response getStudyPost(Long id) {
         StudyPost post = studyPostRepository.findByIdWithUserAndProfileAndMembers(id)
@@ -90,9 +123,6 @@ public class StudyService {
         return new StudyPostDto.Response(post);
     }
 
-    // =========================
-    // 생성
-    // =========================
     public StudyPostDto.Response createStudyPost(StudyPostDto.Request req, Long currentUserId) {
         User user = userRepository.findById(currentUserId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자 정보를 찾을 수 없습니다."));
@@ -101,8 +131,10 @@ public class StudyService {
         if (campuses.isEmpty()) {
             throw new IllegalArgumentException("campus는 하나 이상 선택해야 합니다.");
         }
-        Set<String> languages = validateAndNormalizeLanguages(req.getLanguages());
-        if (languages.isEmpty()) {
+
+        // languages는 DB 기준으로 검증 후 code로 저장
+        Set<String> languageCodes = validateAndNormalizeLanguageCodes(req.getLanguages());
+        if (languageCodes.isEmpty()) {
             throw new IllegalArgumentException("language는 하나 이상 선택해야 합니다.");
         }
 
@@ -111,35 +143,31 @@ public class StudyService {
                 req.getContent(),
                 normalizeStatusOrDefault(req.getStatus(), "모집중"),
                 campuses,
-                languages,
+                languageCodes,
                 validateCapacity(req.getCapacity()),
                 user
         );
 
         StudyPost savedPost = studyPostRepository.save(post);
 
-        //  (수정) Role 제거
         StudyMember creatorAsMember = StudyMember.builder()
                 .user(user)
                 .studyPost(savedPost)
-                // .role(StudyMember.Role.LEADER) // <-- 이 부분이 제거되었습니다.
                 .build();
         studyMemberRepository.save(creatorAsMember);
 
-        savedPost.getMembers().add(creatorAsMember); // 500 에러(JPA 캐시) 방지
+        savedPost.getMembers().add(creatorAsMember);
 
         return new StudyPostDto.Response(savedPost);
     }
 
-    // =========================
-    // 부분 수정 (PATCH)
-    // =========================
     public StudyPostDto.Response updateStudyPost(Long id, StudyPostDto.Request req, Long currentUserId) {
         StudyPost post = studyPostRepository.findByIdWithUserAndProfileAndMembers(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 스터디 글을 찾을 수 없습니다. id=" + id));
         if (!post.getUser().getId().equals(currentUserId)) {
             throw new SecurityException("수정 권한이 없습니다.");
         }
+
         if (isPresentAndNotString(req.getTitle())) post.setTitle(req.getTitle().trim());
         if (isPresentAndNotString(req.getContent())) post.setContent(req.getContent().trim());
         if (isPresentAndNotString(req.getStatus())) {
@@ -156,11 +184,11 @@ public class StudyService {
         }
 
         if (req.getLanguages() != null) {
-            Set<String> languages = validateAndNormalizeLanguages(req.getLanguages());
-            if (languages.isEmpty()) {
+            Set<String> languageCodes = validateAndNormalizeLanguageCodes(req.getLanguages());
+            if (languageCodes.isEmpty()) {
                 throw new IllegalArgumentException("language는 하나 이상 선택해야 합니다.");
             }
-            post.setLanguages(languages);
+            post.setLanguages(languageCodes);
         }
 
         if (req.getCapacity() != null) {
@@ -171,12 +199,10 @@ public class StudyService {
             }
             post.setCapacity(newCapacity);
         }
+
         return new StudyPostDto.Response(studyPostRepository.save(post));
     }
 
-    // =========================
-    // 삭제
-    // =========================
     public void deleteStudyPost(Long id, Long currentUserId) {
         StudyPost post = studyPostRepository.findByIdWithUserAndProfileAndMembers(id)
                 .orElseThrow(() -> new IllegalArgumentException("이미 삭제되었거나 존재하지 않는 글입니다. id=" + id));
@@ -185,10 +211,6 @@ public class StudyService {
         }
         studyPostRepository.deleteById(id);
     }
-
-    // =========================
-    // 유틸 함수
-    // =========================
 
     private boolean isPresentAndNotString(String v) {
         if (v == null) return false;
@@ -223,17 +245,42 @@ public class StudyService {
         if (rawList == null) return null;
         return rawList.stream()
                 .map(this::normalizeCampus)
+                .filter(Objects::nonNull)
                 .filter(StudyPost.getAllowedCampuses()::contains)
                 .distinct()
                 .toList();
     }
 
-    private List<String> normalizeLanguageList(List<String> rawList) {
+    /**
+     * 요청으로 들어온 language 값(code 또는 name 또는 한글 라벨)을 DB를 통해 code로 정규화한다.
+     * - "ru" -> "ru"
+     * - "Russian" -> "ru"
+     * - "러시아어" -> "ru"
+     */
+    private String toLanguageCode(String raw) {
+        if (raw == null) return null;
+        String t = raw.trim();
+        if (t.isEmpty()) return null;
+
+        // 0) 한글 라벨이면 code로 먼저 변환
+        String mapped = KO_LABEL_TO_CODE.get(t);
+        if (mapped != null) {
+            return mapped;
+        }
+
+        // 1) code로 검색 / 2) 영문 name으로 검색
+        return languageRepository.findByCodeIgnoreCase(t)
+                .map(Language::getCode)
+                .or(() -> languageRepository.findByNameIgnoreCase(t).map(Language::getCode))
+                .orElse(null);
+    }
+
+    private List<String> normalizeLanguageCodes(List<String> rawList) {
         if (rawList == null) return null;
-        List<String> allowed = StudyPost.getAllowedLanguages();
+
         return rawList.stream()
-                .map(s -> s == null ? "" : s.trim())
-                .filter(allowed::contains)
+                .map(this::toLanguageCode)
+                .filter(Objects::nonNull)
                 .distinct()
                 .toList();
     }
@@ -252,25 +299,32 @@ public class StudyService {
                     }
                     return s;
                 })
-                .filter(s -> s != null)
+                .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
     }
 
-    private Set<String> validateAndNormalizeLanguages(List<String> rawLangs) {
-        if (rawLangs == null) {
-            return new HashSet<>();
-        }
-        List<String> allowed = StudyPost.getAllowedLanguages();
-        return rawLangs.stream()
-                .map(s -> s == null ? "" : s.trim())
+    /**
+     * 생성/수정 요청의 languages를 DB 기준으로 검증하고 code Set으로 반환
+     *  중복/공백으로 억울하게 터지지 않도록 안정화
+     */
+    private Set<String> validateAndNormalizeLanguageCodes(List<String> rawLangs) {
+        if (rawLangs == null) return new HashSet<>();
+
+        List<String> cleaned = rawLangs.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
                 .filter(s -> !s.isEmpty())
-                .map(s -> {
-                    if (!allowed.contains(s)) {
-                        throw new IllegalArgumentException("지원하지 않는 언어입니다:" + s);
-                    }
-                    return s;
-                })
-                .collect(Collectors.toSet());
+                .toList();
+
+        List<String> normalized = cleaned.stream()
+                .map(this::toLanguageCode)
+                .toList();
+
+        if (normalized.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("지원하지 않는 언어가 포함되어 있습니다.");
+        }
+
+        return new HashSet<>(normalized);
     }
 
     private Integer validateCapacity(Integer capacity) {

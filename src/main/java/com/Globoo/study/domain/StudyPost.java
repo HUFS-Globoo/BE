@@ -2,6 +2,7 @@ package com.Globoo.study.domain;
 
 import com.Globoo.user.domain.User;
 import jakarta.persistence.*;
+
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -16,7 +17,6 @@ public class StudyPost {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ... (title, content, status, campuses, languages, capacity, user) ...
     @Column(nullable = false)
     private String title;
 
@@ -31,9 +31,13 @@ public class StudyPost {
     @Column(name = "campus", nullable = false)
     private Set<String> campuses = new HashSet<>();
 
+    /**
+     * 주의: languages에는 언어 "code"를 저장한다. (예: en, ko, ru, pl ...)
+     * DB languages 테이블의 PK(code)와 동일한 값을 저장하는 구조
+     */
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "study_post_languages", joinColumns = @JoinColumn(name = "study_post_id"))
-    @Column(name = "language", nullable = false)
+    @Column(name = "language", nullable = false, length = 5)
     private Set<String> languages = new HashSet<>();
 
     @Column(nullable = false)
@@ -43,23 +47,17 @@ public class StudyPost {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-
-    //  현재 가입한 멤버 목록
-    // cascade = CascadeType.REMOVE: 스터디 글이 삭제되면 멤버 정보도 함께 삭제
     @OneToMany(mappedBy = "studyPost", fetch = FetchType.LAZY, cascade = CascadeType.REMOVE)
     private Set<StudyMember> members = new HashSet<>();
 
-    // ... (createdAt, updatedAt) ...
     @Column(nullable = false)
     private LocalDateTime createdAt;
 
     @Column(nullable = false)
     private LocalDateTime updatedAt;
 
-
     protected StudyPost() {}
 
-    // 생성자 수정 (user 파라미터는 이미 있음)
     public StudyPost(String title,
                      String content,
                      String status,
@@ -76,7 +74,6 @@ public class StudyPost {
         this.user = user;
     }
 
-    // ... (PrePersist, PreUpdate) ...
     @PrePersist
     public void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -88,19 +85,10 @@ public class StudyPost {
         this.updatedAt = LocalDateTime.now();
     }
 
-    // ... (getAllowedLanguages, getAllowedCampuses) ...
-    public static List<String> getAllowedLanguages() {
-        return Arrays.asList(
-                "영어", "일본어", "중국어", "독일어", "프랑스어",
-                "스페인어", "이탈리아어", "러시아어", "베트남어", "한국어"
-        );
-    }
     public static List<String> getAllowedCampuses() {
         return Arrays.asList("서울", "글로벌");
     }
 
-    // ===== Getter / Setter =====
-    // ... (기존 Getter/Setter) ...
     public Long getId() { return id; }
     public String getTitle() { return title; }
     public void setTitle(String title) { this.title = title; }
@@ -118,7 +106,6 @@ public class StudyPost {
     public LocalDateTime getCreatedAt() { return createdAt; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
 
-    // ✅ (추가) members Getter
     public Set<StudyMember> getMembers() {
         return members;
     }
