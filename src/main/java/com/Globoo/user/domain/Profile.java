@@ -47,8 +47,7 @@ public class Profile {
     @Column(name = "info_title", length = 120)
     private String infoTitle;
 
-    @Lob
-    @Column(name = "info_content")
+    @Column(name = "info_content", columnDefinition = "TEXT")
     private String infoContent;
 
     @Column(length = 8)
