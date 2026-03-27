@@ -1,0 +1,43 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        show_sql: false
+
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    properties:
+      mail.smtp.auth: true
+      mail.smtp.starttls.enable: true
+    from: ${MAIL_FROM}
+
+jwt:
+  issuer: Globoo
+  access-token-validity-seconds: 3600
+  refresh-token-validity-seconds: 1209600
+  secret: ${JWT_SECRET}
+
+server:
+  port: 8080
+  forward-headers-strategy: framework
+
+globoo:
+  translation:
+    deepl:
+      auth-key: ${DEEPL_AUTH_KEY:}
