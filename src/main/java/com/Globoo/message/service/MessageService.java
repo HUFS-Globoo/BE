@@ -1,11 +1,11 @@
 package com.Globoo.message.service;
 
+import com.Globoo.common.logging.LoggerService;
 import com.Globoo.message.domain.DirectMessage;
 import com.Globoo.message.domain.DmThread;
 import com.Globoo.message.dto.MessageResDto;
 import com.Globoo.message.repository.DirectMessageRepository;
 import com.Globoo.message.repository.DmThreadRepository;
-import com.Globoo.user.domain.Profile;
 import com.Globoo.user.domain.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,8 +22,8 @@ public class MessageService {
 
     private final DmThreadRepository threadRepository;
     private final DirectMessageRepository messageRepository;
+    private final LoggerService loggerService;
 
-    // dto 변환 유틸
     private MessageResDto.UserSummaryDto toUserSummary(User user) {
         String nickname = user.getProfile() != null ? user.getProfile().getNickname() : user.getUsername();
         String nationality = user.getProfile() != null ? user.getProfile().getCountry() : "Unknown";
@@ -60,7 +60,6 @@ public class MessageService {
                 .build();
     }
 
-    // 조회
     @Transactional(readOnly = true)
     public List<MessageResDto.ThreadDto> getThreads(User user) {
         List<DmThread> threads = threadRepository.findByUser1OrUser2(user, user);
@@ -78,7 +77,6 @@ public class MessageService {
                 .collect(Collectors.toList());
     }
 
-    // 쓰기
     public DmThread getOrCreateThread(User me, User partner) {
         return threadRepository.findByUser1AndUser2(me, partner)
                 .or(() -> threadRepository.findByUser1AndUser2(partner, me))
@@ -98,7 +96,11 @@ public class MessageService {
                 .receiver(receiver)
                 .content(content)
                 .build();
+
         DirectMessage saved = messageRepository.save(message);
+
+        loggerService.logEvent("MESSAGE_SENT", sender.getId());
+
         return toMessageResDto(saved);
     }
 
@@ -108,7 +110,6 @@ public class MessageService {
         unread.forEach(DirectMessage::markAsRead);
     }
 
-    // 조회용 Thread
     @Transactional(readOnly = true)
     public Optional<DmThread> findThread(User me, User partner) {
         return threadRepository.findByUser1AndUser2(me, partner)

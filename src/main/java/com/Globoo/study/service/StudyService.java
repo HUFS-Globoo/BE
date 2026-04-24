@@ -1,5 +1,6 @@
 package com.Globoo.study.service;
 
+import com.Globoo.common.logging.LoggerService;
 import com.Globoo.study.DTO.StudyPostDto;
 import com.Globoo.study.domain.StudyMember;
 import com.Globoo.study.domain.StudyPost;
@@ -27,8 +28,8 @@ public class StudyService {
     private final UserRepository userRepository;
     private final StudyMemberRepository studyMemberRepository;
     private final LanguageRepository languageRepository;
+    private final LoggerService loggerService;
 
-    // ✅ 한글 라벨 -> code 매핑 (프론트가 "아랍어" 같은 라벨로 보내는 상황 대응)
     private static final Map<String, String> KO_LABEL_TO_CODE = Map.ofEntries(
             Map.entry("한국어", "ko"),
             Map.entry("영어", "en"),
@@ -61,11 +62,13 @@ public class StudyService {
     public StudyService(StudyPostRepository studyPostRepository,
                         UserRepository userRepository,
                         StudyMemberRepository studyMemberRepository,
-                        LanguageRepository languageRepository) {
+                        LanguageRepository languageRepository,
+                        LoggerService loggerService) {
         this.studyPostRepository = studyPostRepository;
         this.userRepository = userRepository;
         this.studyMemberRepository = studyMemberRepository;
         this.languageRepository = languageRepository;
+        this.loggerService = loggerService;
     }
 
     @Transactional(readOnly = true)
@@ -94,7 +97,6 @@ public class StudyService {
                 predicate = cb.and(predicate, cJoin.in(normCampuses));
             }
 
-            // languages에는 code가 저장되어 있으므로 code 리스트로 필터링
             if (normLangCodes != null && !normLangCodes.isEmpty()) {
                 Join<StudyPost, String> lJoin = root.join("languages", JoinType.INNER);
                 predicate = cb.and(predicate, lJoin.in(normLangCodes));
@@ -120,6 +122,9 @@ public class StudyService {
     public StudyPostDto.Response getStudyPost(Long id) {
         StudyPost post = studyPostRepository.findByIdWithUserAndProfileAndMembers(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 스터디 글을 찾을 수 없습니다. id=" + id));
+
+        loggerService.logEvent("COMMUNITY_POST_CLICK", null);
+
         return new StudyPostDto.Response(post);
     }
 
@@ -132,7 +137,6 @@ public class StudyService {
             throw new IllegalArgumentException("campus는 하나 이상 선택해야 합니다.");
         }
 
-        // languages는 DB 기준으로 검증 후 code로 저장
         Set<String> languageCodes = validateAndNormalizeLanguageCodes(req.getLanguages());
         if (languageCodes.isEmpty()) {
             throw new IllegalArgumentException("language는 하나 이상 선택해야 합니다.");
@@ -164,6 +168,7 @@ public class StudyService {
     public StudyPostDto.Response updateStudyPost(Long id, StudyPostDto.Request req, Long currentUserId) {
         StudyPost post = studyPostRepository.findByIdWithUserAndProfileAndMembers(id)
                 .orElseThrow(() -> new IllegalArgumentException("해당 스터디 글을 찾을 수 없습니다. id=" + id));
+
         if (!post.getUser().getId().equals(currentUserId)) {
             throw new SecurityException("수정 권한이 없습니다.");
         }
@@ -194,9 +199,13 @@ public class StudyService {
         if (req.getCapacity() != null) {
             Integer newCapacity = validateCapacity(req.getCapacity());
             int currentParticipants = post.getMembers().size();
+
             if (newCapacity < currentParticipants) {
-                throw new IllegalArgumentException("새로운 최대 인원은 현재 참여 인원(" + currentParticipants + "명)보다 적을 수 없습니다.");
+                throw new IllegalArgumentException(
+                        "새로운 최대 인원은 현재 참여 인원(" + currentParticipants + "명)보다 적을 수 없습니다."
+                );
             }
+
             post.setCapacity(newCapacity);
         }
 
@@ -206,9 +215,11 @@ public class StudyService {
     public void deleteStudyPost(Long id, Long currentUserId) {
         StudyPost post = studyPostRepository.findByIdWithUserAndProfileAndMembers(id)
                 .orElseThrow(() -> new IllegalArgumentException("이미 삭제되었거나 존재하지 않는 글입니다. id=" + id));
+
         if (!post.getUser().getId().equals(currentUserId)) {
             throw new SecurityException("삭제 권한이 없습니다.");
         }
+
         studyPostRepository.deleteById(id);
     }
 
@@ -221,28 +232,33 @@ public class StudyService {
     private String normalizeStatus(String raw) {
         if (raw == null) return null;
         String s = raw.trim().toLowerCase();
+
         if (s.isEmpty()) return null;
         if (s.equals("open") || s.equals("모집중") || s.equals("recruiting")) return "모집중";
         if (s.equals("closed") || s.equals("close") || s.equals("모집완료") || s.equals("마감")) return "마감";
+
         return raw.trim();
     }
 
     private String normalizeStatusOrDefault(String raw, String dft) {
         String n = normalizeStatus(raw);
-        return (n == null ? dft : n);
+        return n == null ? dft : n;
     }
 
     private String normalizeCampus(String raw) {
         if (raw == null) return null;
         String s = raw.trim().toLowerCase();
+
         if (s.isEmpty()) return null;
         if (s.equals("global") || s.equals("글로벌")) return "글로벌";
-        if (s.equals("seoul") || s.equals("서울"))   return "서울";
+        if (s.equals("seoul") || s.equals("서울")) return "서울";
+
         return raw.trim();
     }
 
     private List<String> normalizeCampusList(List<String> rawList) {
         if (rawList == null) return null;
+
         return rawList.stream()
                 .map(this::normalizeCampus)
                 .filter(Objects::nonNull)
@@ -251,24 +267,17 @@ public class StudyService {
                 .toList();
     }
 
-    /**
-     * 요청으로 들어온 language 값(code 또는 name 또는 한글 라벨)을 DB를 통해 code로 정규화한다.
-     * - "ru" -> "ru"
-     * - "Russian" -> "ru"
-     * - "러시아어" -> "ru"
-     */
     private String toLanguageCode(String raw) {
         if (raw == null) return null;
+
         String t = raw.trim();
         if (t.isEmpty()) return null;
 
-        // 0) 한글 라벨이면 code로 먼저 변환
         String mapped = KO_LABEL_TO_CODE.get(t);
         if (mapped != null) {
             return mapped;
         }
 
-        // 1) code로 검색 / 2) 영문 name으로 검색
         return languageRepository.findByCodeIgnoreCase(t)
                 .map(Language::getCode)
                 .or(() -> languageRepository.findByNameIgnoreCase(t).map(Language::getCode))
@@ -289,24 +298,24 @@ public class StudyService {
         if (rawCampuses == null) {
             return new HashSet<>();
         }
+
         List<String> allowed = StudyPost.getAllowedCampuses();
+
         return rawCampuses.stream()
                 .map(this::normalizeCampus)
                 .map(s -> {
                     if (s == null || s.trim().isEmpty()) return null;
+
                     if (!allowed.contains(s)) {
                         throw new IllegalArgumentException("캠퍼스는 '서울' 또는 '글로벌'만 가능합니다: " + s);
                     }
+
                     return s;
                 })
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());
     }
 
-    /**
-     * 생성/수정 요청의 languages를 DB 기준으로 검증하고 code Set으로 반환
-     *  중복/공백으로 억울하게 터지지 않도록 안정화
-     */
     private Set<String> validateAndNormalizeLanguageCodes(List<String> rawLangs) {
         if (rawLangs == null) return new HashSet<>();
 
@@ -331,9 +340,11 @@ public class StudyService {
         if (capacity == null) {
             throw new IllegalArgumentException("capacity(최대 인원)는 필수입니다. (1~6)");
         }
+
         if (capacity < 1 || capacity > 6) {
             throw new IllegalArgumentException("capacity는 1 이상 6 이하만 가능합니다.");
         }
+
         return capacity;
     }
 }

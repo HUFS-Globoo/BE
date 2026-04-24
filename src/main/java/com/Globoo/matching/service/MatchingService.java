@@ -6,6 +6,7 @@ import com.Globoo.chat.event.ChatReadyEvent;
 import com.Globoo.chat.event.ChatSessionEndedEvent;
 import com.Globoo.chat.event.MatchFoundEvent;
 import com.Globoo.chat.service.ChatService;
+import com.Globoo.common.logging.LoggerService;
 import com.Globoo.matching.domain.MatchPair;
 import com.Globoo.matching.domain.MatchQueue;
 import com.Globoo.matching.domain.MatchStatus;
@@ -36,8 +37,8 @@ public class MatchingService {
     private final ChatService chatService;
     private final ProfileService profileService;
     private final ApplicationEventPublisher eventPublisher;
+    private final LoggerService loggerService;
 
-    // 매칭 설정 상수
     private static final int LANGUAGE_MATCH_SCORE = 50;
     private static final int KEYWORD_MATCH_SCORE = 10;
     private static final int MBTI_IDEAL_SCORE = 30;
@@ -71,23 +72,16 @@ public class MatchingService {
         for (String type : types) MBTI_GOOD_MAP.put(type, List.of(type));
     }
 
-    /**
-     * [핵심 수정 포인트]
-     * - enterQueue는 "내 큐(active=true) 레코드를 항상 유지"하도록 만든다.
-     * - 후보가 있든 없든, 먼저 내 큐를 확보한 다음에 매칭을 시도한다.
-     * - FOUND가 되면 "나와 상대 둘 다" active=false로 내려 큐에서 빠지게 한다.
-     */
     @Transactional
     public Map<String, Object> enterQueue(Long userId) {
-        // 이미 active match가 있으면 큐 입장 불가
+        loggerService.logEvent("MATCH_ENTER", userId);
+
         if (pairRepo.findActiveMatchByUserId(userId).isPresent()) {
             return Map.of("success", true, "status", "ALREADY_MATCHED");
         }
 
-        // 1) 이미 큐(active=true)에 있으면 새로 insert 하지 않고 대기 유지
         MatchQueue myNode = queueRepo.findByUserIdAndActiveTrue(userId).orElse(null);
 
-        // 2) 큐에 없다면 새로 생성해서 "반드시" 저장 (active=true)
         if (myNode == null) {
             ProfileCardRes profile = profileService.getProfileCard(userId);
 
@@ -110,11 +104,9 @@ public class MatchingService {
             myNode = queueRepo.save(myNode);
         }
 
-        // 3) 후보 조회
         List<Long> skippedUserIds = pairRepo.findRecentlySkippedUserIds(userId, LocalDateTime.now().minusHours(1));
         List<MatchQueue> candidates = queueRepo.findAllByActiveTrueAndUserIdNot(userId);
 
-        // 후보 없으면 대기
         if (candidates.isEmpty()) {
             return Map.of(
                     "success", true,
@@ -123,7 +115,6 @@ public class MatchingService {
             );
         }
 
-        // 4) 점수 기반으로 최고 후보 선택
         MatchQueue bestPartner = null;
         int highestScore = -1;
 
@@ -140,7 +131,6 @@ public class MatchingService {
             }
         }
 
-        // 5) 매칭 성사 → "둘 다" 큐 비활성화 + match_pair 생성 + 알림
         if (bestPartner != null && highestScore >= SCORE_THRESHOLD) {
             myNode.setActive(false);
             bestPartner.setActive(false);
@@ -153,13 +143,16 @@ public class MatchingService {
                     .matchedAt(LocalDateTime.now())
                     .matchedBy("adaptive_scoring_system")
                     .build();
+
             pairRepo.save(match);
+
+            loggerService.logEvent("MATCH_FOUND", match.getUserAId());
+            loggerService.logEvent("MATCH_FOUND", match.getUserBId());
 
             sendFoundNotification(match);
             return Map.of("success", true, "status", "FOUND", "matchId", match.getId());
         }
 
-        // 점수 미달이면 대기 유지(내 큐는 active=true로 남아있음)
         return Map.of("success", true, "status", "WAITING");
     }
 
@@ -193,7 +186,6 @@ public class MatchingService {
         MatchPair match = pairRepo.findByIdForUpdate(matchId)
                 .orElseThrow(() -> new NoSuchElementException("MatchPair not found: " + matchId));
 
-        // 참여자 검증
         if (!Objects.equals(match.getUserAId(), userId) && !Objects.equals(match.getUserBId(), userId)) {
             throw new IllegalArgumentException("User is not a participant of this match. userId=" + userId);
         }
@@ -201,7 +193,6 @@ public class MatchingService {
         if (Objects.equals(match.getUserAId(), userId)) match.setAcceptedA(true);
         if (Objects.equals(match.getUserBId(), userId)) match.setAcceptedB(true);
 
-        // accept 액션이 있으면 matchedAt 갱신 (cleanup 보호)
         match.setMatchedAt(LocalDateTime.now());
 
         if (Boolean.TRUE.equals(match.getAcceptedA()) && Boolean.TRUE.equals(match.getAcceptedB())) {
@@ -213,6 +204,9 @@ public class MatchingService {
 
                 ChatRoomCreateResDto res = chatService.createChatRoom(req, userId);
                 match.setChatRoomId(res.getRoomId());
+
+                loggerService.logEvent("CHAT_STARTED", match.getUserAId());
+                loggerService.logEvent("CHAT_STARTED", match.getUserBId());
 
                 eventPublisher.publishEvent(new ChatReadyEvent(this, match));
             }
@@ -229,9 +223,6 @@ public class MatchingService {
         );
     }
 
-    /**
-     * 응답 없는 매칭 정리 (FOUND, ACCEPTED_ONE) - 20초
-     */
     @Scheduled(fixedRate = 10000)
     @Transactional
     public void cleanupAbandonedMatches() {
@@ -329,7 +320,11 @@ public class MatchingService {
                 .matchedAt(LocalDateTime.now())
                 .matchedBy("auto_matching_scheduler")
                 .build();
+
         pairRepo.save(match);
+
+        loggerService.logEvent("MATCH_FOUND", match.getUserAId());
+        loggerService.logEvent("MATCH_FOUND", match.getUserBId());
 
         sendFoundNotification(match);
         log.info("[Auto-Match] 유저 {}와 {} 매칭 성사 (매칭ID: {})", a.getUserId(), b.getUserId(), match.getId());
@@ -363,12 +358,10 @@ public class MatchingService {
     public Map<String, Object> skipAndRequeue(UUID matchId, Long userId) {
         MatchPair m = pairRepo.findById(matchId).orElse(null);
 
-        // cleanup 등으로 이미 삭제된 matchId면 예외 대신 재매칭
         if (m == null) {
             return enterQueue(userId);
         }
 
-        // 참여자 검증
         if (!Objects.equals(m.getUserAId(), userId) && !Objects.equals(m.getUserBId(), userId)) {
             throw new IllegalArgumentException("User is not a participant of this match. userId=" + userId);
         }

@@ -6,6 +6,7 @@ import com.Globoo.auth.dto.SignupStep1Req;
 import com.Globoo.auth.repository.EmailVerificationTokenRepository;
 import com.Globoo.common.error.AuthException;
 import com.Globoo.common.error.ErrorCode;
+import com.Globoo.common.logging.LoggerService;
 import com.Globoo.profile.store.ProfileRepository;
 import com.Globoo.user.domain.Campus;
 import com.Globoo.user.domain.Profile;
@@ -32,6 +33,7 @@ public class EmailVerificationService {
 
     private final UserRepository userRepo;
     private final ProfileRepository profileRepo;
+    private final LoggerService loggerService;
 
     private static final Duration TTL = Duration.ofHours(24);
     private static final Duration RESEND_COOL = Duration.ofMinutes(3);
@@ -106,7 +108,6 @@ public class EmailVerificationService {
      */
     @Transactional
     public Long verifyCodeAndCreateUser(String email, String code, Campus campus) {
-        // ✅ 2차 방어: 컨트롤러/DTO 검증 누락 or 내부 호출 대비
         if (campus == null) {
             throw new AuthException(ErrorCode.CAMPUS_REQUIRED);
         }
@@ -120,7 +121,6 @@ public class EmailVerificationService {
 
         PendingSignupPayload payload = fromJson(v.getSignupPayload(), PendingSignupPayload.class);
 
-        // 인증 성공 시점 최종 중복 방어
         if (userRepo.existsByEmail(payload.email())) throw new AuthException(ErrorCode.EMAIL_ALREADY_EXISTS);
         if (userRepo.existsByUsername(payload.username())) throw new AuthException(ErrorCode.USERNAME_ALREADY_EXISTS);
         if (profileRepo.existsByNickname(payload.nickname())) throw new AuthException(ErrorCode.NICKNAME_ALREADY_EXISTS);
@@ -139,11 +139,18 @@ public class EmailVerificationService {
                 .nickname(payload.nickname())
                 .birthDate(payload.birthDate())
                 .gender(payload.gender())
-                .campus(campus)   // ✅ Step2에서 받은 campus로 저장
+                .campus(campus)
                 .build());
 
         v.setVerifiedAt(LocalDateTime.now());
         v.setUser(u);
+
+        loggerService.logSignup(
+                u.getId(),
+                campus.toString(),
+                payload.birthDate(),
+                payload.gender()
+        );
 
         return u.getId();
     }

@@ -1,5 +1,6 @@
 package com.Globoo.onboarding.service;
 
+import com.Globoo.common.logging.LoggerService; // ✅ 추가
 import com.Globoo.onboarding.dto.OnboardingStep3Req;
 import com.Globoo.onboarding.dto.OnboardingStep4Req;
 import com.Globoo.profile.store.ProfileRepository;
@@ -26,30 +27,28 @@ public class OnboardingService {
     private final UserKeywordRepository userKwRepo;
     private final KeywordRepository kwRepo;
 
+    private final LoggerService loggerService; // 추가
+
     /** Step3: 국적 1개 + 언어(모국어 1개, 학습언어 1개) */
     @Transactional
     public void step3(Long userId, OnboardingStep3Req req) {
-        // user/profile 존재 확인
         userRepo.findById(userId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.UNAUTHORIZED, "User not found"));
 
         Profile p = profileRepo.findByUserId(userId).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.BAD_REQUEST, "Profile not found"));
 
-        // 1) 국적 저장 (null/blank 방어 + 대문자 정규화)
         String nat = req.nationalityCode();
         if (nat == null || nat.isBlank()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "nationalityCode is required");
         }
         p.setCountry(nat.trim().toUpperCase());
 
-        // 2) 언어 코드 검증
         Language nativeLang = langRepo.findById(req.nativeLanguageCode())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown native language code"));
         Language learnLang = langRepo.findById(req.preferredLanguageCode())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown learn language code"));
 
-        // 3) 기존 언어 삭제 후 2개 저장
         userLangRepo.deleteAllByUserId(userId);
 
         User userRef = User.builder().id(userId).build();
@@ -85,7 +84,7 @@ public class OnboardingService {
         validateKeywordCount(hks);
         validateKeywordCount(tks);
 
-        // 3) 키워드 존재 검증 (category+nameIn)
+        // 3) 키워드 존재 검증
         List<Keyword> kp = kwRepo.findAllByCategoryAndNameIn(Keyword.Category.PERSONALITY, pks);
         if (kp.size() != pks.size())
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown PERSONALITY keywords");
@@ -101,12 +100,14 @@ public class OnboardingService {
         // 4) 기존 매핑 삭제 후 저장
         userKwRepo.deleteAllByUser_Id(userId);
 
-
         User userRef = User.builder().id(userId).build();
 
         for (Keyword k : kp) userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
         for (Keyword k : kh) userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
         for (Keyword k : kt) userKwRepo.save(UserKeyword.builder().user(userRef).keyword(k).build());
+
+        // 핵심 추가 (여기가 진짜 중요)
+        loggerService.logEvent("PROFILE_COMPLETED", userId);
     }
 
     private List<String> dedup(List<String> in) {
