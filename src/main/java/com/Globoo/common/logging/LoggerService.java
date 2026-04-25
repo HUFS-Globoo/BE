@@ -12,6 +12,8 @@ import java.util.Map;
 @Service
 public class LoggerService {
 
+    private static final String EVENT_LOG_PREFIX = "[GLOBOO_EVENT] ";
+
     private final ObjectMapper objectMapper;
 
     public LoggerService(ObjectMapper objectMapper) {
@@ -40,9 +42,9 @@ public class LoggerService {
         log.put("metadata", metadata == null ? new HashMap<>() : metadata);
 
         try {
-            System.out.println(objectMapper.writeValueAsString(log));
+            System.out.println(EVENT_LOG_PREFIX + objectMapper.writeValueAsString(log));
         } catch (Exception e) {
-            System.out.println("{\"event_name\":\"LOGGING_FAILED\",\"status\":\"error\"}");
+            System.out.println(EVENT_LOG_PREFIX + "{\"event_name\":\"LOGGING_FAILED\",\"status\":\"error\"}");
         }
     }
 
