@@ -57,6 +57,6 @@ public class LoggerService {
         if (age < 25) return "20_24";
         if (age < 30) return "25_29";
         if (age < 35) return "30_34";
-        return "35_plus";
+        return "35_plus"; //★ 나이대 -> 학년? 으로 구성할건지 아니면 그냥 나이대로 구성할건지에 대한 회의가 조금은 필요해보임!
     }
 }
