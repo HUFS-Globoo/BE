@@ -1,5 +1,6 @@
 package com.Globoo.common.logging;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -10,6 +11,12 @@ import java.util.Map;
 
 @Service
 public class LoggerService {
+
+    private final ObjectMapper objectMapper;
+
+    public LoggerService(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
 
     public void logSignup(Long userId, String campus, LocalDate birthDate, Object gender) {
         Map<String, Object> metadata = new HashMap<>();
@@ -32,14 +39,11 @@ public class LoggerService {
         log.put("status", "success");
         log.put("metadata", metadata == null ? new HashMap<>() : metadata);
 
-        System.out.println(log);
-    }
-
-    public void logCommunityPostClick(Long userId, Long postId) {
-        Map<String, Object> metadata = new HashMap<>();
-        metadata.put("post_id", postId);
-
-        logEvent("COMMUNITY_POST_CLICK", userId, metadata);
+        try {
+            System.out.println(objectMapper.writeValueAsString(log));
+        } catch (Exception e) {
+            System.out.println("{\"event_name\":\"LOGGING_FAILED\",\"status\":\"error\"}");
+        }
     }
 
     private String getAgeGroup(LocalDate birthDate) {
